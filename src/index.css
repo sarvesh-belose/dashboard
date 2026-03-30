@@ -1,0 +1,23 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.react-grid-item.react-grid-placeholder {
+  background: var(--mantine-color-blue-1);
+  border-radius: var(--mantine-radius-sm);
+  opacity: 0.5;
+}
+
+.react-resizable-handle {
+  opacity: 0.4;
+}
+
+.react-resizable-handle:hover {
+  opacity: 1;
+}

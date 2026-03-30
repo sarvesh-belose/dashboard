@@ -31,7 +31,7 @@ function coerce(value: unknown, transform?: FieldMapping['transform']): unknown 
   switch (transform) {
     case 'number': return Number(value)
     case 'string': return String(value)
-    case 'boolean': return Boolean(value)
+    case 'boolean': return value === 'false' || value === 0 || value === '0' ? false : Boolean(value)
     case 'date': return new Date(String(value)).toISOString()
     default: return value
   }

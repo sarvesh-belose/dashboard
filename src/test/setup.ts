@@ -1,35 +1,81 @@
 import '@testing-library/jest-dom'
 import { cleanup } from '@testing-library/react'
-import { afterEach, beforeAll, vi } from 'vitest'
-import { server } from './msw-server'
 
-// Start MSW before all tests
-beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }))
-
-// Reset handlers between tests
+// Clean up DOM after each test
 afterEach(() => {
   cleanup()
-  server.resetHandlers()
 })
 
-// Clean up after all tests
-afterAll(() => server.close())
+// Mock ResizeObserver (not available in jsdom)
+global.ResizeObserver = class ResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
 
-// Mock Highcharts modules (they use side-effect imports)
-vi.mock('highcharts/highcharts-more', () => ({ default: () => {} }))
-vi.mock('highcharts/modules/exporting', () => ({ default: () => {} }))
-vi.mock('highcharts/modules/accessibility', () => ({ default: () => {} }))
+// Mock IntersectionObserver (used by Mantine popovers/dropdowns)
+global.IntersectionObserver = class IntersectionObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+  readonly root = null
+  readonly rootMargin = ''
+  readonly thresholds = []
+  takeRecords() { return [] }
+} as unknown as typeof IntersectionObserver
 
-// Mock react-grid-layout css imports
-vi.mock('react-grid-layout/css/styles.css', () => ({}))
-vi.mock('react-resizable/css/styles.css', () => ({}))
+// Mock matchMedia (jsdom does not implement it)
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: (query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  }),
+})
 
-// Stub crypto.randomUUID for deterministic IDs in tests
+// Mock Highcharts side-effect modules
+jest.mock('highcharts/highcharts-more', () => ({ default: () => {} }))
+jest.mock('highcharts/modules/exporting', () => ({ default: () => {} }))
+jest.mock('highcharts/modules/accessibility', () => ({ default: () => {} }))
+
+// Mock HighchartsReact to avoid Highcharts rendering in jsdom
+jest.mock('highcharts-react-official', () => ({
+  __esModule: true,
+  default: ({ options }: { options: unknown }) => (
+    <div data-testid="highcharts-mock" data-options={JSON.stringify(options)} />
+  ),
+}))
+
+// Mock react-grid-layout to avoid complex DOM measurements
+jest.mock('react-grid-layout', () => ({
+  ResponsiveGridLayout: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="grid-layout">{children}</div>
+  ),
+  useContainerWidth: () => ({ width: 1200, containerRef: { current: null } }),
+}))
+
+// Mock zustand persist middleware (avoid localStorage side effects in unit tests)
+jest.mock('zustand/middleware', () => ({
+  persist: (config: unknown) => config,
+}))
+
+// Stub crypto.randomUUID for deterministic IDs
 let uuidCounter = 0
-vi.stubGlobal('crypto', {
-  ...global.crypto,
-  randomUUID: () => `test-uuid-${++uuidCounter}`,
+Object.defineProperty(global, 'crypto', {
+  value: {
+    randomUUID: () => `test-uuid-${++uuidCounter}`,
+  },
 })
 
-// Reset UUID counter between tests
-afterEach(() => { uuidCounter = 0 })
+beforeEach(() => {
+  uuidCounter = 0
+  localStorage.clear()
+})
+
+import React from 'react'

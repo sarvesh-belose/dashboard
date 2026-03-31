@@ -1,0 +1,27 @@
+{
+  "data": {
+    "items": [
+      { "id": "ORD-1001", "customer": "Acme Corporation",    "product": "Enterprise Suite", "amount": 12500,  "status": "paid",    "region": "north-america", "date": "2024-11-01", "sales_rep": "Alice Johnson" },
+      { "id": "ORD-1002", "customer": "Globex Inc",          "product": "Professional Plan","amount": 4200,   "status": "pending", "region": "europe",        "date": "2024-11-03", "sales_rep": "Bob Smith" },
+      { "id": "ORD-1003", "customer": "Initech Ltd",         "product": "Starter Plan",     "amount": 899,    "status": "paid",    "region": "europe",        "date": "2024-11-04", "sales_rep": "Carol White" },
+      { "id": "ORD-1004", "customer": "Umbrella Corp",       "product": "Enterprise Suite", "amount": 18750,  "status": "overdue", "region": "north-america", "date": "2024-10-15", "sales_rep": "Alice Johnson" },
+      { "id": "ORD-1005", "customer": "Soylent Corp",        "product": "Add-ons",          "amount": 1200,   "status": "paid",    "region": "asia-pacific",  "date": "2024-11-05", "sales_rep": "Dave Lee" },
+      { "id": "ORD-1006", "customer": "Massive Dynamic",     "product": "Professional Plan","amount": 4200,   "status": "paid",    "region": "north-america", "date": "2024-11-06", "sales_rep": "Bob Smith" },
+      { "id": "ORD-1007", "customer": "Cyberdyne Systems",   "product": "Enterprise Suite", "amount": 15000,  "status": "pending", "region": "north-america", "date": "2024-11-07", "sales_rep": "Alice Johnson" },
+      { "id": "ORD-1008", "customer": "Weyland-Yutani",      "product": "Training & Support","amount": 3500,  "status": "paid",    "region": "europe",        "date": "2024-11-08", "sales_rep": "Carol White" },
+      { "id": "ORD-1009", "customer": "Tyrell Corporation",  "product": "Starter Plan",     "amount": 899,    "status": "cancelled","region": "asia-pacific", "date": "2024-11-02", "sales_rep": "Dave Lee" },
+      { "id": "ORD-1010", "customer": "Oscorp Industries",   "product": "Enterprise Suite", "amount": 22000,  "status": "paid",    "region": "north-america", "date": "2024-11-09", "sales_rep": "Alice Johnson" },
+      { "id": "ORD-1011", "customer": "Stark Industries",    "product": "Professional Plan","amount": 4200,   "status": "paid",    "region": "north-america", "date": "2024-11-10", "sales_rep": "Bob Smith" },
+      { "id": "ORD-1012", "customer": "Wayne Enterprises",   "product": "Enterprise Suite", "amount": 18750,  "status": "pending", "region": "north-america", "date": "2024-11-11", "sales_rep": "Alice Johnson" },
+      { "id": "ORD-1013", "customer": "LexCorp",             "product": "Add-ons",          "amount": 650,    "status": "paid",    "region": "north-america", "date": "2024-11-12", "sales_rep": "Carol White" },
+      { "id": "ORD-1014", "customer": "Dharma Initiative",   "product": "Starter Plan",     "amount": 899,    "status": "overdue", "region": "asia-pacific",  "date": "2024-10-20", "sales_rep": "Dave Lee" },
+      { "id": "ORD-1015", "customer": "Rekall Inc",          "product": "Professional Plan","amount": 4200,   "status": "paid",    "region": "latin-america", "date": "2024-11-13", "sales_rep": "Eve Martinez" }
+    ],
+    "total": 15
+  },
+  "meta": {
+    "page": 1,
+    "page_size": 15,
+    "currency": "USD"
+  }
+}

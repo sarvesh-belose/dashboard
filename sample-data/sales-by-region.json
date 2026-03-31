@@ -1,0 +1,20 @@
+{
+  "data": {
+    "series": [
+      {
+        "name": "Sales by Region",
+        "data": [
+          { "name": "North America", "y": 42 },
+          { "name": "Europe", "y": 28 },
+          { "name": "Asia Pacific", "y": 18 },
+          { "name": "Latin America", "y": 8 },
+          { "name": "Middle East & Africa", "y": 4 }
+        ]
+      }
+    ]
+  },
+  "meta": {
+    "period": "2024",
+    "unit": "percent"
+  }
+}

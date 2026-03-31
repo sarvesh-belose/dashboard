@@ -1,0 +1,23 @@
+{
+  "data": {
+    "items": [
+      { "id": "TKT-4501", "subject": "Cannot export to CSV",           "customer": "Acme Corporation",  "priority": "high",   "status": "open",        "category": "bug",     "assignee": "Mia Scott",   "created_at": "2024-11-13T09:14:00Z", "sla_breach": false },
+      { "id": "TKT-4500", "subject": "Billing discrepancy Q3",         "customer": "Globex Inc",         "priority": "high",   "status": "open",        "category": "billing", "assignee": "Mia Scott",   "created_at": "2024-11-13T08:05:00Z", "sla_breach": true  },
+      { "id": "TKT-4499", "subject": "Integration with Salesforce",    "customer": "Oscorp Industries",  "priority": "medium", "status": "in_progress", "category": "feature", "assignee": "Mia Scott",   "created_at": "2024-11-12T14:30:00Z", "sla_breach": false },
+      { "id": "TKT-4498", "subject": "Password reset not working",     "customer": "Initech Ltd",        "priority": "medium", "status": "resolved",    "category": "bug",     "assignee": "Mia Scott",   "created_at": "2024-11-12T11:00:00Z", "sla_breach": false },
+      { "id": "TKT-4497", "subject": "Dashboard loads slowly",         "customer": "Stark Industries",   "priority": "low",    "status": "open",        "category": "bug",     "assignee": "unassigned",  "created_at": "2024-11-12T09:45:00Z", "sla_breach": false },
+      { "id": "TKT-4496", "subject": "Add multi-currency support",     "customer": "Wayne Enterprises",  "priority": "medium", "status": "in_progress", "category": "feature", "assignee": "Mia Scott",   "created_at": "2024-11-11T16:20:00Z", "sla_breach": false },
+      { "id": "TKT-4495", "subject": "API rate limit exceeded",        "customer": "Cyberdyne Systems",  "priority": "high",   "status": "resolved",    "category": "bug",     "assignee": "Mia Scott",   "created_at": "2024-11-11T10:10:00Z", "sla_breach": false },
+      { "id": "TKT-4494", "subject": "User permissions incorrect",     "customer": "Massive Dynamic",    "priority": "high",   "status": "resolved",    "category": "bug",     "assignee": "Mia Scott",   "created_at": "2024-11-10T14:55:00Z", "sla_breach": false },
+      { "id": "TKT-4493", "subject": "Report template customisation",  "customer": "LexCorp",            "priority": "low",    "status": "open",        "category": "feature", "assignee": "unassigned",  "created_at": "2024-11-10T11:30:00Z", "sla_breach": false },
+      { "id": "TKT-4492", "subject": "SSO configuration help",         "customer": "Weyland-Yutani",     "priority": "medium", "status": "resolved",    "category": "support", "assignee": "Mia Scott",   "created_at": "2024-11-09T09:00:00Z", "sla_breach": false }
+    ],
+    "total": 10
+  },
+  "meta": {
+    "open_count": 4,
+    "in_progress_count": 2,
+    "resolved_count": 4,
+    "sla_breaches": 1
+  }
+}

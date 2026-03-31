@@ -1,0 +1,41 @@
+{
+  "data": {
+    "revenue": {
+      "current": 2233000,
+      "previous": 1987000,
+      "change_pct": 12.4,
+      "currency": "USD"
+    },
+    "orders": {
+      "current": 1482,
+      "previous": 1315,
+      "change_pct": 12.7
+    },
+    "customers": {
+      "active": 348,
+      "new_this_month": 42,
+      "churned_this_month": 7,
+      "churn_rate_pct": 2.01
+    },
+    "avg_order_value": {
+      "current": 1506,
+      "previous": 1511,
+      "change_pct": -0.3,
+      "currency": "USD"
+    },
+    "conversion_rate": {
+      "current_pct": 3.8,
+      "previous_pct": 3.5,
+      "change_pct": 8.6
+    },
+    "support_tickets": {
+      "open": 23,
+      "resolved_this_week": 89,
+      "avg_resolution_hours": 4.2
+    }
+  },
+  "meta": {
+    "as_of": "2024-11-13T23:59:59Z",
+    "period": "2024"
+  }
+}

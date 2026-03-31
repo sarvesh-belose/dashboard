@@ -1,7 +1,43 @@
 const path = require('path')
+const fs = require('fs')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const MiniCssExtractPlugin = require('mini-css-extract-plugin').default || require('mini-css-extract-plugin')
 const CopyPlugin = require('copy-webpack-plugin')
+
+// ---------------------------------------------------------------------------
+// Mock API middleware — serves sample-data/*.json as REST endpoints
+// GET /api/sales/monthly      → sample-data/sales-monthly.json
+// GET /api/sales/by-region    → sample-data/sales-by-region.json
+// GET /api/sales/by-product   → sample-data/sales-by-product.json
+// GET /api/sales/weekly       → sample-data/sales-weekly.json
+// GET /api/orders             → sample-data/orders.json
+// GET /api/employees          → sample-data/employees.json
+// GET /api/kpis               → sample-data/kpis.json
+// GET /api/pipeline           → sample-data/pipeline.json
+// GET /api/support-tickets    → sample-data/support-tickets.json
+// ---------------------------------------------------------------------------
+const MOCK_ROUTES = {
+  '/api/sales/monthly':   'sales-monthly.json',
+  '/api/sales/by-region': 'sales-by-region.json',
+  '/api/sales/by-product':'sales-by-product.json',
+  '/api/sales/weekly':    'sales-weekly.json',
+  '/api/orders':          'orders.json',
+  '/api/employees':       'employees.json',
+  '/api/kpis':            'kpis.json',
+  '/api/pipeline':        'pipeline.json',
+  '/api/support-tickets': 'support-tickets.json',
+}
+
+function mockApiMiddleware(req, res, next) {
+  const file = MOCK_ROUTES[req.path]
+  if (!file) return next()
+  const filePath = path.resolve(__dirname, 'sample-data', file)
+  if (!fs.existsSync(filePath)) return next()
+  res.setHeader('Content-Type', 'application/json')
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  // Simulate a small network delay so loading states are visible
+  setTimeout(() => res.end(fs.readFileSync(filePath, 'utf8')), 200)
+}
 
 module.exports = (env, argv) => {
   const isDev = argv.mode === 'development'
@@ -78,6 +114,10 @@ module.exports = (env, argv) => {
       historyApiFallback: true,
       hot: true,
       open: false,
+      setupMiddlewares(middlewares, devServer) {
+        devServer.app.use(mockApiMiddleware)
+        return middlewares
+      },
     },
 
     devtool: isDev ? 'eval-source-map' : 'source-map',

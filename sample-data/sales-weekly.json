@@ -1,0 +1,19 @@
+{
+  "data": {
+    "series": [
+      {
+        "name": "This Week",
+        "data": [12400, 18600, 15200, 22100, 28900, 19500, 9800]
+      },
+      {
+        "name": "Last Week",
+        "data": [10800, 16400, 14100, 19800, 25600, 17200, 8400]
+      }
+    ],
+    "categories": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+  },
+  "meta": {
+    "week": "2024-W50",
+    "currency": "USD"
+  }
+}

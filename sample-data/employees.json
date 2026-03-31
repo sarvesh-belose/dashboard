@@ -1,0 +1,28 @@
+{
+  "data": {
+    "items": [
+      { "id": "EMP-001", "name": "Alice Johnson",  "department": "Sales",      "role": "Senior AE",         "salary": 95000,  "active": true,  "start_date": "2019-03-15", "region": "north-america", "manager": "Frank Davis" },
+      { "id": "EMP-002", "name": "Bob Smith",      "department": "Sales",      "role": "Account Executive", "salary": 72000,  "active": true,  "start_date": "2021-06-01", "region": "europe",        "manager": "Frank Davis" },
+      { "id": "EMP-003", "name": "Carol White",    "department": "Sales",      "role": "Account Executive", "salary": 72000,  "active": true,  "start_date": "2020-09-10", "region": "europe",        "manager": "Frank Davis" },
+      { "id": "EMP-004", "name": "Dave Lee",       "department": "Sales",      "role": "Account Executive", "salary": 68000,  "active": true,  "start_date": "2022-01-17", "region": "asia-pacific",  "manager": "Frank Davis" },
+      { "id": "EMP-005", "name": "Eve Martinez",   "department": "Sales",      "role": "Junior AE",         "salary": 58000,  "active": true,  "start_date": "2023-04-03", "region": "latin-america", "manager": "Frank Davis" },
+      { "id": "EMP-006", "name": "Frank Davis",    "department": "Sales",      "role": "Sales Manager",     "salary": 130000, "active": true,  "start_date": "2017-07-22", "region": "north-america", "manager": "Grace Kim" },
+      { "id": "EMP-007", "name": "Grace Kim",      "department": "Executive",  "role": "VP of Sales",       "salary": 210000, "active": true,  "start_date": "2015-01-05", "region": "north-america", "manager": "Henry Brown" },
+      { "id": "EMP-008", "name": "Henry Brown",    "department": "Executive",  "role": "CEO",               "salary": 350000, "active": true,  "start_date": "2012-03-30", "region": "north-america", "manager": null },
+      { "id": "EMP-009", "name": "Iris Chen",      "department": "Engineering","role": "Senior Engineer",   "salary": 145000, "active": true,  "start_date": "2018-11-14", "region": "asia-pacific",  "manager": "Jack Wilson" },
+      { "id": "EMP-010", "name": "Jack Wilson",    "department": "Engineering","role": "Engineering Manager","salary": 170000, "active": true,  "start_date": "2016-05-20", "region": "north-america", "manager": "Grace Kim" },
+      { "id": "EMP-011", "name": "Karen Adams",    "department": "Marketing",  "role": "Marketing Manager", "salary": 105000, "active": true,  "start_date": "2019-08-11", "region": "north-america", "manager": "Grace Kim" },
+      { "id": "EMP-012", "name": "Leo Turner",     "department": "Engineering","role": "Engineer",          "salary": 115000, "active": false, "start_date": "2020-02-28", "region": "europe",        "manager": "Jack Wilson" },
+      { "id": "EMP-013", "name": "Mia Scott",      "department": "Support",    "role": "Support Lead",      "salary": 78000,  "active": true,  "start_date": "2021-03-08", "region": "europe",        "manager": "Karen Adams" },
+      { "id": "EMP-014", "name": "Nathan Park",    "department": "Finance",    "role": "Financial Analyst", "salary": 88000,  "active": true,  "start_date": "2020-07-19", "region": "north-america", "manager": "Henry Brown" },
+      { "id": "EMP-015", "name": "Olivia Reed",    "department": "Engineering","role": "Senior Engineer",   "salary": 142000, "active": true,  "start_date": "2017-12-01", "region": "north-america", "manager": "Jack Wilson" }
+    ],
+    "total": 15
+  },
+  "meta": {
+    "page": 1,
+    "page_size": 15,
+    "currency": "USD",
+    "note": "Salary data is restricted to admin and finance roles"
+  }
+}

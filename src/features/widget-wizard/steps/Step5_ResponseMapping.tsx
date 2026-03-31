@@ -1,17 +1,17 @@
-import { useState } from 'react'
 import {
-  Stack, TextInput, Text, Table, Select, Button, ActionIcon,
-  Group, Grid, ScrollArea, Alert, Badge, Tooltip, Paper,
-  Divider, Card, ThemeIcon, SimpleGrid, Box, Code,
+  Stack, Text, Select, Button, ActionIcon, TextInput, Table,
+  Group, Grid, Alert, Badge, Paper, Divider, Card, SimpleGrid,
+  Box, ThemeIcon, ScrollArea, Code, Collapse,
 } from '@mantine/core'
+import { useDisclosure } from '@mantine/hooks'
 import {
   IconPlus, IconTrash, IconWand, IconAlertCircle, IconCircleCheck,
-  IconAlertTriangle, IconGripVertical, IconInfoCircle,
+  IconAlertTriangle, IconChevronDown, IconChevronUp, IconInfoCircle,
 } from '@tabler/icons-react'
 import { useWidgetWizardStore } from '@/store/widget-wizard.store'
 import { useWizardValidation } from '../WizardValidationContext'
 import {
-  extractPaths, validateSeriesPath, validateCategoriesPath, validateRowsPath,
+  extractPaths, resolveSimplePath, validateSeriesPath, validateCategoriesPath, validateRowsPath,
   type PathNode, type ValidationResult,
 } from '@/utils/response-path-extractor'
 import type { FieldMapping, ChartResponseMapping, GridResponseMapping, ChartConfig, ChartType } from '@/types'
@@ -42,68 +42,51 @@ const CHART_TYPES: { value: ChartType; label: string; icon: string }[] = [
 const PIE_TYPES: ChartType[] = ['pie', 'donut']
 
 // ---------------------------------------------------------------------------
-// Expected JSON structure per chart family
+// Helpers: derive selectable options from the response
 // ---------------------------------------------------------------------------
 
-function ExpectedStructure({ chartType }: { chartType: ChartType }) {
-  const isPie = PIE_TYPES.includes(chartType)
-
-  if (isPie) {
-    return (
-      <Stack gap={4}>
-        <Group gap={6}>
-          <IconInfoCircle size={14} />
-          <Text size="xs" fw={600}>Expected JSON for {chartType}</Text>
-        </Group>
-        <Code block fz={11} style={{ whiteSpace: 'pre' }}>{`{
-  "data": {
-    "series": [
-      {
-        "name": "Market Share",
-        "data": [
-          { "name": "Chrome",  "y": 61 },
-          { "name": "Firefox", "y": 17 },
-          { "name": "Safari",  "y": 10 }
-        ]
-      }
-    ]
-  }
+function getObjectArrayOptions(paths: PathNode[]) {
+  return paths
+    .filter((p) => p.type === 'array-of-objects')
+    .map((p) => ({
+      value: p.path.replace(/\[\*\]/g, ''),
+      label: `${p.path.replace(/\[\*\]/g, '')}  —  ${p.preview}`,
+    }))
 }
 
-Series Path  →  data.series
-Name Field   →  name         (label for the series)
-Data Field   →  data         (array of {name, y} points)
-Note: Categories are NOT used for pie/donut.`}</Code>
-      </Stack>
-    )
-  }
-
-  return (
-    <Stack gap={4}>
-      <Group gap={6}>
-        <IconInfoCircle size={14} />
-        <Text size="xs" fw={600}>Expected JSON for {chartType}</Text>
-      </Group>
-      <Code block fz={11} style={{ whiteSpace: 'pre' }}>{`{
-  "data": {
-    "series": [
-      { "name": "Revenue",  "data": [120, 135, 162] },
-      { "name": "Expenses", "data": [85,  92,  105] }
-    ],
-    "categories": ["Jan", "Feb", "Mar"]
-  }
+function getPrimitiveArrayOptions(paths: PathNode[]) {
+  return paths
+    .filter((p) => p.type === 'array-of-primitives')
+    .map((p) => ({
+      value: p.path.replace(/\[\*\]/g, ''),
+      label: `${p.path.replace(/\[\*\]/g, '')}  —  ${p.preview}`,
+    }))
 }
 
-Series Path      →  data.series
-Name Field       →  name        (series label)
-Data Field       →  data        (array of numbers)
-Categories Path  →  data.categories  (x-axis labels)`}</Code>
-    </Stack>
-  )
+/** Return keys of objects inside an array at the given path */
+function getArrayItemKeys(response: unknown, arrayPath: string): string[] {
+  if (!arrayPath) return []
+  const arr = resolveSimplePath(response, arrayPath)
+  if (!Array.isArray(arr) || arr.length === 0) return []
+  const first = arr[0]
+  if (typeof first !== 'object' || first === null) return []
+  return Object.keys(first as object)
+}
+
+/** Return keys of objects inside item[fieldName] (e.g., series[0].data[0] keys) */
+function getNestedItemKeys(response: unknown, arrayPath: string, fieldName: string): string[] {
+  if (!arrayPath || !fieldName) return []
+  const arr = resolveSimplePath(response, arrayPath)
+  if (!Array.isArray(arr) || arr.length === 0) return []
+  const nested = (arr[0] as Record<string, unknown>)?.[fieldName]
+  if (!Array.isArray(nested) || nested.length === 0) return []
+  const first = nested[0]
+  if (typeof first !== 'object' || first === null) return []
+  return Object.keys(first as object)
 }
 
 // ---------------------------------------------------------------------------
-// Validation badge
+// ValidationBadge
 // ---------------------------------------------------------------------------
 
 function ValidationBadge({ result }: { result: ValidationResult | null }) {
@@ -129,132 +112,247 @@ function ValidationBadge({ result }: { result: ValidationResult | null }) {
 }
 
 // ---------------------------------------------------------------------------
-// Droppable path input
+// PathSelect — searchable Select that shows paths from the response,
+// but also accepts any free-text value typed by the user.
 // ---------------------------------------------------------------------------
 
-interface DroppableInputProps {
+interface PathSelectProps {
   label: string
   description?: string
   placeholder?: string
   value: string
   onChange: (v: string) => void
-  validation: ValidationResult | null
+  options: { value: string; label: string }[]
   required?: boolean
   showError?: boolean
+  validation?: ValidationResult | null
 }
 
-function DroppableInput({ label, description, placeholder, value, onChange, validation, required, showError }: DroppableInputProps) {
-  const [dragOver, setDragOver] = useState(false)
+function PathSelect({ label, description, placeholder, value, onChange, options, required, showError, validation }: PathSelectProps) {
   const emptyError = showError && required && !value.trim() ? `${label} is required.` : undefined
+  // Include the current value in the list even if it was typed manually
+  const data = value && !options.find((o) => o.value === value)
+    ? [{ value, label: value }, ...options]
+    : options
 
   return (
     <Box>
-      <TextInput
+      <Select
         label={label}
         description={description}
-        placeholder={placeholder}
-        value={value}
+        placeholder={placeholder ?? 'Select or type a path…'}
+        value={value || null}
+        onChange={(v) => onChange(v ?? '')}
+        data={data}
+        searchable
+        clearable
         required={required}
         error={emptyError}
-        onChange={(e) => onChange(e.currentTarget.value)}
         size="sm"
-        styles={{
-          input: {
-            borderColor: dragOver ? 'var(--mantine-color-blue-5)' : undefined,
-            backgroundColor: dragOver ? 'var(--mantine-color-blue-0)' : undefined,
-            transition: 'border-color 0.15s, background-color 0.15s',
-          },
-        }}
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => {
-          e.preventDefault()
-          setDragOver(false)
-          const path = e.dataTransfer.getData('text/plain')
-          if (path) onChange(path)
-        }}
-        rightSection={dragOver
-          ? <Text size="xs" c="blue" style={{ whiteSpace: 'nowrap', paddingRight: 4 }}>Drop here</Text>
-          : null}
-        rightSectionWidth={80}
+        nothingFoundMessage={
+          options.length === 0
+            ? 'Run the API test first to see paths'
+            : 'No matching path — type to enter manually'
+        }
+        comboboxProps={{ withinPortal: true }}
       />
-      {/* Validation feedback (only if no empty-error shown) */}
-      {!emptyError && <ValidationBadge result={validation} />}
+      {!emptyError && <ValidationBadge result={validation ?? null} />}
     </Box>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Path explorer (right panel)
+// KeySelect — searchable Select for object keys (name field, data field, etc.)
 // ---------------------------------------------------------------------------
 
-function PathChip({ node, color }: { node: PathNode; color: string }) {
+interface KeySelectProps {
+  label: string
+  description?: string
+  placeholder?: string
+  value: string
+  onChange: (v: string) => void
+  keys: string[]
+  disabled?: boolean
+}
+
+function KeySelect({ label, description, placeholder, value, onChange, keys, disabled }: KeySelectProps) {
+  const options = keys.map((k) => ({ value: k, label: k }))
+  const data = value && !options.find((o) => o.value === value)
+    ? [{ value, label: value }, ...options]
+    : options
+
   return (
-    <Paper
-      draggable
-      onDragStart={(e) => {
-        e.dataTransfer.setData('text/plain', node.path.replace(/\[\*\]/g, ''))
-        e.dataTransfer.effectAllowed = 'copy'
-      }}
-      withBorder p={6}
-      style={{ cursor: 'grab', userSelect: 'none' }}
-    >
-      <Group gap="xs" wrap="nowrap">
-        <IconGripVertical size={12} style={{ color: 'var(--mantine-color-dimmed)', flexShrink: 0 }} />
-        <Box style={{ flex: 1, minWidth: 0 }}>
-          <Group gap={4} wrap="nowrap">
-            <Text size="xs" ff="monospace" style={{ wordBreak: 'break-all' }}>{node.path}</Text>
-            <Badge size="xs" color={color} variant="light" style={{ flexShrink: 0 }}>
-              {node.type === 'array-of-objects' ? 'obj[]'
-                : node.type === 'array-of-primitives' ? 'val[]'
-                : node.type}
-            </Badge>
-          </Group>
-          <Text size="xs" c="dimmed" truncate>{node.preview}</Text>
-        </Box>
-      </Group>
+    <Select
+      label={label}
+      description={description}
+      placeholder={placeholder ?? 'Select a field…'}
+      value={value || null}
+      onChange={(v) => onChange(v ?? '')}
+      data={data}
+      searchable
+      clearable
+      disabled={disabled}
+      size="sm"
+      nothingFoundMessage="No keys found — select the series path first"
+      comboboxProps={{ withinPortal: true }}
+    />
+  )
+}
+
+// ---------------------------------------------------------------------------
+// SeriesPreview — shows what will actually be extracted
+// ---------------------------------------------------------------------------
+
+function SeriesPreview({
+  response, seriesPath, nameField, dataField, chartType,
+}: {
+  response: unknown
+  seriesPath: string
+  nameField: string
+  dataField: string
+  chartType: ChartType
+}) {
+  if (!seriesPath) return null
+  const arr = resolveSimplePath(response, seriesPath)
+  if (!Array.isArray(arr) || arr.length === 0) return null
+
+  const isPie = PIE_TYPES.includes(chartType)
+
+  return (
+    <Paper withBorder p="xs" bg="var(--mantine-color-green-0)">
+      <Text size="xs" fw={600} c="green.8" mb={4}>
+        <IconCircleCheck size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+        Mapping preview — {arr.length} series found
+      </Text>
+      <Stack gap={4}>
+        {arr.slice(0, 4).map((item, i) => {
+          const rec = item as Record<string, unknown>
+          const seriesName = nameField && rec[nameField] !== undefined
+            ? String(rec[nameField])
+            : `Series ${i + 1}`
+          const dataVal = dataField ? rec[dataField] : undefined
+          let dataInfo = ''
+          if (Array.isArray(dataVal)) {
+            if (dataVal.length === 0) {
+              dataInfo = 'empty array'
+            } else if (typeof dataVal[0] === 'number') {
+              const nums = (dataVal as number[]).slice(0, 3).join(', ')
+              dataInfo = `[${nums}${dataVal.length > 3 ? ', …' : ''}]`
+            } else if (typeof dataVal[0] === 'object' && dataVal[0] !== null) {
+              const keys = Object.keys(dataVal[0] as object).join(', ')
+              dataInfo = `[{${keys}}, …] × ${dataVal.length}`
+            }
+          } else if (dataVal !== undefined) {
+            dataInfo = String(dataVal)
+          }
+
+          const compatible = isPie
+            ? (Array.isArray(dataVal) && dataVal.length > 0 && typeof dataVal[0] === 'object')
+            : (Array.isArray(dataVal) && dataVal.length > 0 && typeof dataVal[0] === 'number')
+
+          const incompatible = isPie
+            ? (Array.isArray(dataVal) && dataVal.length > 0 && typeof dataVal[0] === 'number')
+            : (Array.isArray(dataVal) && dataVal.length > 0 && typeof dataVal[0] === 'object')
+
+          return (
+            <Group key={i} gap={6} wrap="nowrap">
+              <Text size="xs" ff="monospace" fw={500} style={{ minWidth: 80 }} truncate>{seriesName}</Text>
+              <Text size="xs" c="dimmed">→</Text>
+              <Text size="xs" ff="monospace" c={incompatible ? 'red' : compatible ? 'green.7' : 'dimmed'} truncate>
+                {dataInfo || '(no data field selected)'}
+              </Text>
+              {incompatible && <IconAlertTriangle size={11} color="var(--mantine-color-red-6)" />}
+              {compatible  && <IconCircleCheck   size={11} color="var(--mantine-color-green-6)" />}
+            </Group>
+          )
+        })}
+        {arr.length > 4 && <Text size="xs" c="dimmed">…and {arr.length - 4} more</Text>}
+      </Stack>
+
+      {/* Compatibility hint */}
+      {isPie ? (
+        <Text size="xs" c="blue.7" mt={6}>
+          Pie/Donut expects <Code fz={10}>{'{ name, y }'}</Code> objects in the data array.
+          Each slice is one <Code fz={10}>{'{ name, y }'}</Code> element.
+        </Text>
+      ) : (
+        <Text size="xs" c="blue.7" mt={6}>
+          Line/Bar/Area expect a plain <Code fz={10}>number[]</Code> for each series.
+          Categories provide the x-axis labels.
+        </Text>
+      )}
     </Paper>
   )
 }
 
-function PathExplorer({ paths }: { paths: PathNode[] }) {
-  const objPaths  = paths.filter((p) => p.type === 'array-of-objects')
-  const valPaths  = paths.filter((p) => p.type === 'array-of-primitives')
-  const otherPaths = paths.filter((p) => !['array-of-objects', 'array-of-primitives'].includes(p.type) && p.path !== '(root)')
-
-  if (paths.length === 0) return (
-    <Text size="xs" c="dimmed" ta="center" mt="xl">No paths extracted yet.</Text>
-  )
-
+function CategoriesPreview({ response, categoriesPath }: { response: unknown; categoriesPath: string }) {
+  if (!categoriesPath) return null
+  const arr = resolveSimplePath(response, categoriesPath)
+  if (!Array.isArray(arr) || arr.length === 0) return null
+  const preview = arr.slice(0, 5).map(String).join(', ')
   return (
-    <Stack gap="sm">
-      {objPaths.length > 0 && (
-        <Stack gap={4}>
-          <Text size="xs" fw={600} c="dimmed" tt="uppercase">Arrays of objects</Text>
-          <Text size="xs" c="dimmed">Good for: Series path, Rows path</Text>
-          {objPaths.map((p) => <PathChip key={p.path} node={p} color="blue" />)}
-        </Stack>
-      )}
-      {valPaths.length > 0 && (
-        <Stack gap={4}>
-          <Text size="xs" fw={600} c="dimmed" tt="uppercase">Arrays of values</Text>
-          <Text size="xs" c="dimmed">Good for: Categories path</Text>
-          {valPaths.map((p) => <PathChip key={p.path} node={p} color="teal" />)}
-        </Stack>
-      )}
-      {otherPaths.length > 0 && (
-        <Stack gap={4}>
-          <Text size="xs" fw={600} c="dimmed" tt="uppercase">Other paths</Text>
-          {otherPaths.slice(0, 10).map((p) => <PathChip key={p.path} node={p} color="gray" />)}
-        </Stack>
-      )}
-    </Stack>
+    <Text size="xs" c="green.7" mt={2}>
+      <IconCircleCheck size={11} style={{ verticalAlign: 'middle', marginRight: 2 }} />
+      {arr.length} labels: {preview}{arr.length > 5 ? ', …' : ''}
+    </Text>
+  )
+}
+
+function RowsPreview({ response, rowsPath }: { response: unknown; rowsPath: string }) {
+  if (!rowsPath) return null
+  const arr = resolveSimplePath(response, rowsPath)
+  if (!Array.isArray(arr) || arr.length === 0) return null
+  const first = arr[0] as Record<string, unknown>
+  const cols = typeof first === 'object' && first !== null ? Object.keys(first) : []
+  return (
+    <Paper withBorder p="xs" bg="var(--mantine-color-green-0)">
+      <Text size="xs" fw={600} c="green.8">
+        <IconCircleCheck size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+        {arr.length} rows found
+      </Text>
+      <Text size="xs" c="dimmed" mt={2}>Columns: {cols.join(', ')}</Text>
+    </Paper>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Auto-detect helpers
+// Raw response viewer (collapsible)
 // ---------------------------------------------------------------------------
+
+function RawResponseViewer({ response }: { response: unknown }) {
+  const [opened, { toggle }] = useDisclosure(false)
+  const preview = JSON.stringify(response, null, 2)
+
+  return (
+    <Box>
+      <Group gap={6} style={{ cursor: 'pointer' }} onClick={toggle}>
+        {opened ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+        <Text size="xs" fw={600} c="dimmed">Full API Response</Text>
+      </Group>
+      <Collapse in={opened}>
+        <ScrollArea h={220} mt={4} style={{ border: '1px solid var(--mantine-color-default-border)', borderRadius: 4 }}>
+          <Code block fz={10} style={{ whiteSpace: 'pre' }}>{preview.slice(0, 4000)}{preview.length > 4000 ? '\n…(truncated)' : ''}</Code>
+        </ScrollArea>
+      </Collapse>
+    </Box>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Auto-detect helpers (unchanged from before)
+// ---------------------------------------------------------------------------
+
+function findSeriesPath(obj: unknown, prefix = '', depth = 0): string | null {
+  if (depth > 5) return null
+  if (Array.isArray(obj) && obj.length > 0 && typeof obj[0] === 'object' && 'data' in (obj[0] as object)) return prefix
+  if (typeof obj === 'object' && obj !== null && !Array.isArray(obj)) {
+    for (const [key, val] of Object.entries(obj as Record<string, unknown>)) {
+      const hit = findSeriesPath(val, prefix ? `${prefix}.${key}` : key, depth + 1)
+      if (hit) return hit
+    }
+  }
+  return null
+}
 
 function findFirstArrayOfObjects(obj: unknown, prefix = '', depth = 0): { path: string; rows: Record<string, unknown>[] } | null {
   if (depth > 5) return null
@@ -263,18 +361,6 @@ function findFirstArrayOfObjects(obj: unknown, prefix = '', depth = 0): { path: 
   if (typeof obj === 'object' && obj !== null && !Array.isArray(obj)) {
     for (const [key, val] of Object.entries(obj as Record<string, unknown>)) {
       const hit = findFirstArrayOfObjects(val, prefix ? `${prefix}.${key}` : key, depth + 1)
-      if (hit) return hit
-    }
-  }
-  return null
-}
-
-function findSeriesPath(obj: unknown, prefix = '', depth = 0): string | null {
-  if (depth > 5) return null
-  if (Array.isArray(obj) && obj.length > 0 && typeof obj[0] === 'object' && 'data' in (obj[0] as object)) return prefix
-  if (typeof obj === 'object' && obj !== null && !Array.isArray(obj)) {
-    for (const [key, val] of Object.entries(obj as Record<string, unknown>)) {
-      const hit = findSeriesPath(val, prefix ? `${prefix}.${key}` : key, depth + 1)
       if (hit) return hit
     }
   }
@@ -313,6 +399,21 @@ export function Step5_ResponseMapping() {
   const isPie = PIE_TYPES.includes(chartType)
 
   const paths = hasResponse ? extractPaths(apiPreviewResponse) : []
+  const objectArrayOptions    = getObjectArrayOptions(paths)
+  const primitiveArrayOptions = getPrimitiveArrayOptions(paths)
+
+  const chartMapping = mapping as ChartResponseMapping | undefined
+  const gridMapping  = mapping as GridResponseMapping  | undefined
+
+  // Keys derived from the currently-selected series path
+  const seriesItemKeys = hasResponse
+    ? getArrayItemKeys(apiPreviewResponse, chartMapping?.seriesPath ?? '')
+    : []
+
+  // Keys derived from series[0][dataField] — for pie/donut {name,y} fields
+  const dataPointKeys = hasResponse
+    ? getNestedItemKeys(apiPreviewResponse, chartMapping?.seriesPath ?? '', chartMapping?.seriesDataField ?? '')
+    : []
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -336,15 +437,15 @@ export function Step5_ResponseMapping() {
   // ── Validation ────────────────────────────────────────────────────────────
 
   const seriesValidation: ValidationResult | null = hasResponse && isChart
-    ? validateSeriesPath(apiPreviewResponse, (mapping as ChartResponseMapping)?.seriesPath ?? '', chartType)
+    ? validateSeriesPath(apiPreviewResponse, chartMapping?.seriesPath ?? '', chartType)
     : null
 
   const categoriesValidation: ValidationResult | null = hasResponse && isChart && !isPie
-    ? validateCategoriesPath(apiPreviewResponse, (mapping as ChartResponseMapping)?.categoriesPath ?? '')
+    ? validateCategoriesPath(apiPreviewResponse, chartMapping?.categoriesPath ?? '')
     : null
 
   const rowsValidation: ValidationResult | null = hasResponse && isGrid
-    ? validateRowsPath(apiPreviewResponse, (mapping as GridResponseMapping)?.rowsPath ?? '')
+    ? validateRowsPath(apiPreviewResponse, gridMapping?.rowsPath ?? '')
     : null
 
   // ── Auto-detect ───────────────────────────────────────────────────────────
@@ -356,7 +457,7 @@ export function Step5_ResponseMapping() {
       const categoriesPath = isPie ? '' : (findCategoriesPath(apiPreviewResponse) ?? '')
       const update: Partial<ChartResponseMapping> = { seriesPath, categoriesPath }
       if (seriesPath) {
-        const arr = seriesPath.split('.').reduce<unknown>((o, k) => (o as Record<string, unknown>)?.[k], apiPreviewResponse)
+        const arr = resolveSimplePath(apiPreviewResponse, seriesPath)
         if (Array.isArray(arr) && arr.length > 0) {
           const first = arr[0] as Record<string, unknown>
           if ('name' in first) update.seriesNameField = 'name'
@@ -382,17 +483,14 @@ export function Step5_ResponseMapping() {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  const chartMapping = mapping as ChartResponseMapping | undefined
-  const gridMapping  = mapping as GridResponseMapping  | undefined
-
   return (
     <Grid gutter="md">
 
-      {/* ── LEFT: mapping form ──────────────────────────────────────── */}
-      <Grid.Col span={{ base: 12, md: 6 }}>
+      {/* ── LEFT: mapping form ──────────────────────────────────────────── */}
+      <Grid.Col span={{ base: 12, md: 7 }}>
         <Stack gap="sm">
 
-          {/* 1. Chart type picker — must be chosen before paths so validation is accurate */}
+          {/* Chart type picker */}
           {isChart && (
             <>
               <Text fw={600} size="sm">1. Choose chart type</Text>
@@ -417,98 +515,121 @@ export function Step5_ResponseMapping() {
             </>
           )}
 
-          {/* 2. Paths */}
+          {/* Status bar */}
           <Group justify="space-between" align="center">
-            <Text fw={600} size="sm">{isChart ? '2. Map response paths' : 'Map response paths'}</Text>
-            <Tooltip
-              label={!hasResponse ? 'Run the API test in Step 4 first' : 'Auto-fill paths and fields from the response'}
-              withArrow
+            <Text fw={600} size="sm">{isChart ? '2. Map your data fields' : 'Map your data fields'}</Text>
+            <Button
+              size="xs" variant="light" leftSection={<IconWand size={14} />}
+              onClick={autoDetect} disabled={!hasResponse}
+              title={hasResponse ? 'Auto-fill all fields from the response' : 'Run API test in Step 4 first'}
             >
-              <Button size="xs" variant="light" leftSection={<IconWand size={14} />} onClick={autoDetect} disabled={!hasResponse}>
-                Auto-detect
-              </Button>
-            </Tooltip>
+              Auto-detect
+            </Button>
           </Group>
 
-          {!hasResponse ? (
+          {!hasResponse && (
             <Alert icon={<IconAlertCircle size={14} />} color="yellow" p="xs">
-              No test response yet. Go back to Step 4 and run the request — then use Auto-detect.
-            </Alert>
-          ) : (
-            <Alert icon={<IconCircleCheck size={14} />} color="green" p="xs">
-              Response available. <strong>Drag</strong> a path chip from the right, or click <strong>Auto-detect</strong>.
+              No API response yet. Go back to Step 4 and run the request, then return here and click <strong>Auto-detect</strong>.
             </Alert>
           )}
 
-          {/* Chart paths — different fields for pie/donut vs others */}
+          {/* ── CHART mapping ────────────────────────────────────────────── */}
           {isChart && (
-            <>
-              <DroppableInput
-                label="Series Array Path"
+            <Stack gap="xs">
+
+              {/* Step A: Series array */}
+              <PathSelect
+                label="Series Array"
                 description={isPie
-                  ? 'Path to series array. Each item needs a "data" field with [{name, y}] points.'
-                  : 'Path to series array. Each item needs "name" and "data" (array of numbers).'}
-                placeholder="data.series"
+                  ? 'The array that contains one or more pie series objects (each has a "data" array of slices).'
+                  : 'The array that contains your series — each item is one line/bar with a name and data values.'}
                 value={chartMapping?.seriesPath ?? ''}
                 onChange={(v) => setMapping({ seriesPath: v } as Partial<ChartResponseMapping>)}
-                validation={seriesValidation}
+                options={objectArrayOptions}
                 required
                 showError={showErrors}
+                validation={seriesValidation}
               />
-              <TextInput
+
+              {/* Step B: Name field */}
+              <KeySelect
                 label="Series Name Field"
-                description="Field inside each series object that holds the series label."
-                placeholder="name"
+                description="Which field inside each series object is the series label (e.g. the legend name)?"
+                placeholder={seriesItemKeys.length ? 'Pick a field…' : 'Select series path first'}
                 value={chartMapping?.seriesNameField ?? ''}
-                onChange={(e) => setMapping({ seriesNameField: e.currentTarget.value } as Partial<ChartResponseMapping>)}
-                size="sm"
+                onChange={(v) => setMapping({ seriesNameField: v } as Partial<ChartResponseMapping>)}
+                keys={seriesItemKeys}
+                disabled={!chartMapping?.seriesPath}
               />
-              <TextInput
-                label={isPie ? 'Data Points Field' : 'Series Data Field'}
+
+              {/* Step C: Data field */}
+              <KeySelect
+                label={isPie ? 'Slices Field' : 'Data Values Field'}
                 description={isPie
-                  ? 'Field inside each series object that holds the [{name, y}] points array.'
-                  : 'Field inside each series object that holds the array of numbers.'}
-                placeholder="data"
+                  ? 'The field inside each series that holds the slice array — each slice must be { name, y }.'
+                  : 'The field inside each series that holds the numeric data array — e.g. [120, 135, 162].'}
+                placeholder={seriesItemKeys.length ? 'Pick a field…' : 'Select series path first'}
                 value={chartMapping?.seriesDataField ?? ''}
-                onChange={(e) => setMapping({ seriesDataField: e.currentTarget.value } as Partial<ChartResponseMapping>)}
-                size="sm"
+                onChange={(v) => setMapping({ seriesDataField: v } as Partial<ChartResponseMapping>)}
+                keys={seriesItemKeys}
+                disabled={!chartMapping?.seriesPath}
               />
-              {!isPie && (
-                <DroppableInput
-                  label="Categories Path (optional)"
-                  description={'Path to array of x-axis labels e.g. ["Jan","Feb"]. Leave empty for numeric x-axis.'}
-                  placeholder="data.categories"
-                  value={chartMapping?.categoriesPath ?? ''}
-                  onChange={(v) => setMapping({ categoriesPath: v } as Partial<ChartResponseMapping>)}
-                  validation={categoriesValidation}
-                />
-              )}
-              {isPie && (
+
+              {/* For pie/donut — show slice structure hint based on actual data */}
+              {isPie && chartMapping?.seriesPath && chartMapping?.seriesDataField && dataPointKeys.length > 0 && (
                 <Alert icon={<IconInfoCircle size={14} />} color="blue" p="xs">
-                  Pie / Donut charts do not use Categories — the slice labels come from the <Code>name</Code> field inside each data point object.
+                  Slice objects found with fields: <Code fz={10}>{dataPointKeys.join(', ')}</Code>.
+                  Pie/Donut needs <Code fz={10}>name</Code> (slice label) and <Code fz={10}>y</Code> (slice value).
                 </Alert>
               )}
-            </>
+
+              {/* Step D: Categories (non-pie only) */}
+              {!isPie && (
+                <>
+                  <PathSelect
+                    label="X-Axis Labels (optional)"
+                    description='The array of labels for the x-axis — e.g. ["Jan", "Feb", "Mar"]. Leave empty to use numeric index.'
+                    value={chartMapping?.categoriesPath ?? ''}
+                    onChange={(v) => setMapping({ categoriesPath: v } as Partial<ChartResponseMapping>)}
+                    options={primitiveArrayOptions}
+                    validation={categoriesValidation}
+                  />
+                  <CategoriesPreview response={apiPreviewResponse} categoriesPath={chartMapping?.categoriesPath ?? ''} />
+                </>
+              )}
+
+              {/* Live series preview */}
+              <SeriesPreview
+                response={apiPreviewResponse}
+                seriesPath={chartMapping?.seriesPath ?? ''}
+                nameField={chartMapping?.seriesNameField ?? ''}
+                dataField={chartMapping?.seriesDataField ?? ''}
+                chartType={chartType}
+              />
+            </Stack>
           )}
 
-          {/* Grid paths */}
+          {/* ── GRID mapping ─────────────────────────────────────────────── */}
           {isGrid && (
-            <DroppableInput
-              label="Rows Path"
-              description='Path to the array of row objects, e.g. "data.items".'
-              placeholder="data.items"
-              value={gridMapping?.rowsPath ?? ''}
-              onChange={(v) => setMapping({ rowsPath: v } as Partial<GridResponseMapping>)}
-              validation={rowsValidation}
-              required
-              showError={showErrors}
-            />
+            <Stack gap="xs">
+              <PathSelect
+                label="Rows Array"
+                description='The array of row objects — each element in the array becomes one row in the table.'
+                value={gridMapping?.rowsPath ?? ''}
+                onChange={(v) => setMapping({ rowsPath: v } as Partial<GridResponseMapping>)}
+                options={objectArrayOptions}
+                required
+                showError={showErrors}
+                validation={rowsValidation}
+              />
+              <RowsPreview response={apiPreviewResponse} rowsPath={gridMapping?.rowsPath ?? ''} />
+            </Stack>
           )}
 
           <Divider />
 
-          {/* Field mappings */}
-          <Text size="sm" fw={500}>Field Mappings — rename columns and coerce types</Text>
+          {/* Field mappings table */}
+          <Text size="sm" fw={500}>Column / field mappings <Text span size="xs" c="dimmed">(rename and coerce types)</Text></Text>
           <Table fz="xs">
             <Table.Thead>
               <Table.Tr>
@@ -548,38 +669,77 @@ export function Step5_ResponseMapping() {
         </Stack>
       </Grid.Col>
 
-      {/* ── RIGHT: expected structure + path explorer ───────────────── */}
-      <Grid.Col span={{ base: 12, md: 6 }}>
+      {/* ── RIGHT: field reference + raw response ───────────────────────── */}
+      <Grid.Col span={{ base: 12, md: 5 }}>
         <Stack gap="sm">
           <Group justify="space-between">
-            <Text fw={600} size="sm">Response Paths</Text>
-            {hasResponse && <Badge color="green" variant="dot" size="sm">Live from Step 4</Badge>}
+            <Text fw={600} size="sm">Field Reference</Text>
+            {hasResponse && <Badge color="green" variant="dot" size="sm">Live data</Badge>}
           </Group>
 
-          {/* Expected JSON structure — helps user understand what shape is needed */}
+          {/* Chart type-specific field guide */}
           {isChart && (
-            <Paper withBorder p="xs" bg="var(--mantine-color-default-hover)">
-              <ExpectedStructure chartType={chartType} />
+            <Paper withBorder p="xs">
+              {isPie ? (
+                <Stack gap={6}>
+                  <Text size="xs" fw={600}>Fields for Pie / Donut</Text>
+                  <Box>
+                    <Text size="xs" fw={500}>Series Array</Text>
+                    <Text size="xs" c="dimmed">Array of series objects, each with a name and a data array.</Text>
+                  </Box>
+                  <Box>
+                    <Text size="xs" fw={500}>Series Name Field</Text>
+                    <Text size="xs" c="dimmed">String that labels this series (shown in the legend).</Text>
+                  </Box>
+                  <Box>
+                    <Text size="xs" fw={500}>Slices Field</Text>
+                    <Text size="xs" c="dimmed">Array of slice objects inside the series. Each slice must be:</Text>
+                    <Code fz={10} block style={{ marginTop: 4 }}>{`{ "name": "Chrome", "y": 61 }`}</Code>
+                  </Box>
+                </Stack>
+              ) : (
+                <Stack gap={6}>
+                  <Text size="xs" fw={600}>Fields for {chartType.charAt(0).toUpperCase() + chartType.slice(1)} chart</Text>
+                  <Box>
+                    <Text size="xs" fw={500}>Series Array</Text>
+                    <Text size="xs" c="dimmed">Array of series objects, e.g.:</Text>
+                    <Code fz={10} block style={{ marginTop: 4 }}>{`[{ "name": "Revenue", "data": [120, 135, 162] }]`}</Code>
+                  </Box>
+                  <Box>
+                    <Text size="xs" fw={500}>Data Values Field</Text>
+                    <Text size="xs" c="dimmed">The field that holds the array of numbers for each series.</Text>
+                  </Box>
+                  <Box>
+                    <Text size="xs" fw={500}>X-Axis Labels</Text>
+                    <Text size="xs" c="dimmed">Array of strings that label each data point on the x-axis.</Text>
+                    <Code fz={10} block style={{ marginTop: 4 }}>{`["Jan", "Feb", "Mar"]`}</Code>
+                  </Box>
+                </Stack>
+              )}
             </Paper>
           )}
 
-          <Text size="xs" c="dimmed">
-            {hasResponse
-              ? 'Drag a chip onto a path field, or click Auto-detect.'
-              : 'Run the API test in Step 4 to see available paths.'}
-          </Text>
-
-          {!hasResponse ? (
-            <Paper withBorder p="md" style={{ minHeight: 120 }}>
-              <Text size="xs" c="dimmed" ta="center" mt="lg">No response yet.</Text>
+          {isGrid && (
+            <Paper withBorder p="xs">
+              <Stack gap={6}>
+                <Text size="xs" fw={600}>Fields for Grid</Text>
+                <Box>
+                  <Text size="xs" fw={500}>Rows Array</Text>
+                  <Text size="xs" c="dimmed">Array of row objects. Each object becomes one row in the table. Example:</Text>
+                  <Code fz={10} block style={{ marginTop: 4 }}>{`[
+  { "id": 1, "name": "Alice", "status": "active" },
+  { "id": 2, "name": "Bob",   "status": "inactive" }
+]`}</Code>
+                </Box>
+              </Stack>
             </Paper>
-          ) : (
-            <ScrollArea h={360} style={{ border: '1px solid var(--mantine-color-default-border)', borderRadius: 4 }} p="xs">
-              <PathExplorer paths={paths} />
-            </ScrollArea>
           )}
+
+          {/* Full raw response (collapsed by default) */}
+          {hasResponse && <RawResponseViewer response={apiPreviewResponse} />}
         </Stack>
       </Grid.Col>
+
     </Grid>
   )
 }

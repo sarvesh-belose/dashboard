@@ -1,4 +1,4 @@
-import { Stack, Text, SimpleGrid, Card, Select, Switch, Textarea, NumberInput, Button, ActionIcon, Group, TextInput } from '@mantine/core'
+import { Stack, Text, Select, Switch, Textarea, NumberInput, Button, ActionIcon, Group, TextInput, Badge } from '@mantine/core'
 import { IconTrash, IconPlus } from '@tabler/icons-react'
 import { useWidgetWizardStore } from '@/store/widget-wizard.store'
 import type { ChartConfig, ChartType, GridConfig, GridColumnDef } from '@/types'
@@ -42,28 +42,19 @@ function ChartConfigPanel() {
   const set = (partial: Partial<ChartConfig>) =>
     updateDraft({ chartConfig: { ...chartConfig, ...partial } } as never)
 
+  const selectedType = CHART_TYPES.find((ct) => ct.value === chartConfig.chartType)
+
   return (
     <Stack gap="md">
       <Text fw={600} size="sm">Chart Configuration</Text>
-      <Text size="xs" fw={500}>Chart Type</Text>
-      <SimpleGrid cols={4} spacing="xs">
-        {CHART_TYPES.map((ct) => (
-          <Card
-            key={ct.value}
-            withBorder
-            padding="xs"
-            style={{
-              cursor: 'pointer',
-              textAlign: 'center',
-              borderColor: chartConfig.chartType === ct.value ? 'var(--mantine-color-blue-6)' : undefined,
-            }}
-            onClick={() => set({ chartType: ct.value })}
-          >
-            <Text size="lg">{ct.emoji}</Text>
-            <Text size="xs">{ct.label}</Text>
-          </Card>
-        ))}
-      </SimpleGrid>
+
+      <Group gap="xs">
+        <Text size="sm" fw={500}>Chart type:</Text>
+        <Badge variant="light" color="blue" size="md">
+          {selectedType?.emoji} {selectedType?.label ?? chartConfig.chartType}
+        </Badge>
+        <Text size="xs" c="dimmed">(set in previous step)</Text>
+      </Group>
 
       <Switch
         label="Show data labels"

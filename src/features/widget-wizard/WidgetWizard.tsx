@@ -1,5 +1,5 @@
 import { useState, type ComponentType } from 'react'
-import { Modal, Button, Group, Divider, Box, ScrollArea, Text } from '@mantine/core'
+import { Modal, Button, Group, Divider, Box, Text } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useWidgetWizardStore } from '@/store/widget-wizard.store'
 import { useDashboardStore } from '@/store/dashboard.store'
@@ -50,11 +50,11 @@ function getStepError(step: WizardStep, draft: Partial<Widget>): string | null {
       const mapping = (draft as { responseMapping?: ChartResponseMapping | GridResponseMapping }).responseMapping
       if (draft.type === 'chart') {
         if (!(mapping as ChartResponseMapping)?.seriesPath?.trim())
-          return 'Series Path is required. Run the API test and use Auto-detect, or enter the path manually.'
+          return 'Please tell us where your chart data is. Use "Auto-detect" or pick a path from the dropdown under "Where is your chart data?".'
       }
       if (draft.type === 'grid') {
         if (!(mapping as GridResponseMapping)?.rowsPath?.trim())
-          return 'Rows Path is required. Run the API test and use Auto-detect, or enter the path manually.'
+          return 'Please tell us which list contains your table rows. Use "Auto-detect" or pick a path from the dropdown under "Which list contains your table rows?".'
       }
       return null
     }
@@ -160,9 +160,12 @@ export function WidgetWizard() {
         <Box p="md" pt="xs">
           {type && <WizardProgressBar />}
 
-          <ScrollArea style={{ maxHeight: 'calc(80vh - 180px)' }} p="xs">
+          <Box
+            px="xs"
+            style={{ overflowY: 'auto', maxHeight: 'calc(80vh - 170px)' }}
+          >
             {StepComponent && <StepComponent />}
-          </ScrollArea>
+          </Box>
 
           {/* Step-level error shown above the nav buttons */}
           {showErrors && stepError && (

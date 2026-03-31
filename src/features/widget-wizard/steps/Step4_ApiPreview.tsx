@@ -26,6 +26,7 @@ export function Step4_ApiPreview() {
     try {
       const result = await executeWidgetRequest({ apiConfig })
       setApiPreview(result.data, result.status, result.latencyMs)
+      setTesting(false)
     } catch (err) {
       setTestError((err as Error).message)
     }

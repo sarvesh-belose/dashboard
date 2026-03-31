@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import {
-  Stack, Text, Paper, Alert, Group, Badge, Button, ThemeIcon,
-  Box, Table, ScrollArea, Code,
+  Stack, Text, Paper, Alert, Group, Badge, ThemeIcon,
+  Table, ScrollArea,
 } from '@mantine/core'
 import {
   IconAlertCircle, IconCircleCheck, IconAlertTriangle,

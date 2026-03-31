@@ -1,21 +1,18 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import {
   Stack, TextInput, Text, Table, Select, Button, ActionIcon,
   Group, Grid, ScrollArea, Alert, Badge, Tooltip, Paper,
-  Divider, Card, ThemeIcon, SimpleGrid, Box,
+  Divider, Card, ThemeIcon, SimpleGrid, Box, Code,
 } from '@mantine/core'
 import {
   IconPlus, IconTrash, IconWand, IconAlertCircle, IconCircleCheck,
-  IconAlertTriangle, IconGripVertical,
+  IconAlertTriangle, IconGripVertical, IconInfoCircle,
 } from '@tabler/icons-react'
 import { useWidgetWizardStore } from '@/store/widget-wizard.store'
+import { useWizardValidation } from '../WizardValidationContext'
 import {
-  extractPaths,
-  validateSeriesPath,
-  validateCategoriesPath,
-  validateRowsPath,
-  type PathNode,
-  type ValidationResult,
+  extractPaths, validateSeriesPath, validateCategoriesPath, validateRowsPath,
+  type PathNode, type ValidationResult,
 } from '@/utils/response-path-extractor'
 import type { FieldMapping, ChartResponseMapping, GridResponseMapping, ChartConfig, ChartType } from '@/types'
 
@@ -24,10 +21,10 @@ import type { FieldMapping, ChartResponseMapping, GridResponseMapping, ChartConf
 // ---------------------------------------------------------------------------
 
 const TRANSFORMS = [
-  { value: '', label: 'Auto' },
-  { value: 'string', label: 'String' },
-  { value: 'number', label: 'Number' },
-  { value: 'date', label: 'Date' },
+  { value: '',        label: 'Auto'    },
+  { value: 'string',  label: 'String'  },
+  { value: 'number',  label: 'Number'  },
+  { value: 'date',    label: 'Date'    },
   { value: 'boolean', label: 'Boolean' },
 ]
 
@@ -35,51 +32,104 @@ const CHART_TYPES: { value: ChartType; label: string; icon: string }[] = [
   { value: 'line',    label: 'Line',    icon: '📈' },
   { value: 'bar',     label: 'Bar',     icon: '📊' },
   { value: 'column',  label: 'Column',  icon: '📉' },
-  { value: 'area',    label: 'Area',    icon: '🏔' },
+  { value: 'area',    label: 'Area',    icon: '🏔'  },
   { value: 'pie',     label: 'Pie',     icon: '🥧' },
   { value: 'donut',   label: 'Donut',   icon: '🍩' },
-  { value: 'scatter', label: 'Scatter', icon: '✦' },
-  { value: 'spline',  label: 'Spline',  icon: '〰' },
+  { value: 'scatter', label: 'Scatter', icon: '✦'  },
+  { value: 'spline',  label: 'Spline',  icon: '〰'  },
 ]
 
+const PIE_TYPES: ChartType[] = ['pie', 'donut']
+
 // ---------------------------------------------------------------------------
-// Validation indicator
+// Expected JSON structure per chart family
+// ---------------------------------------------------------------------------
+
+function ExpectedStructure({ chartType }: { chartType: ChartType }) {
+  const isPie = PIE_TYPES.includes(chartType)
+
+  if (isPie) {
+    return (
+      <Stack gap={4}>
+        <Group gap={6}>
+          <IconInfoCircle size={14} />
+          <Text size="xs" fw={600}>Expected JSON for {chartType}</Text>
+        </Group>
+        <Code block fz={11} style={{ whiteSpace: 'pre' }}>{`{
+  "data": {
+    "series": [
+      {
+        "name": "Market Share",
+        "data": [
+          { "name": "Chrome",  "y": 61 },
+          { "name": "Firefox", "y": 17 },
+          { "name": "Safari",  "y": 10 }
+        ]
+      }
+    ]
+  }
+}
+
+Series Path  →  data.series
+Name Field   →  name         (label for the series)
+Data Field   →  data         (array of {name, y} points)
+Note: Categories are NOT used for pie/donut.`}</Code>
+      </Stack>
+    )
+  }
+
+  return (
+    <Stack gap={4}>
+      <Group gap={6}>
+        <IconInfoCircle size={14} />
+        <Text size="xs" fw={600}>Expected JSON for {chartType}</Text>
+      </Group>
+      <Code block fz={11} style={{ whiteSpace: 'pre' }}>{`{
+  "data": {
+    "series": [
+      { "name": "Revenue",  "data": [120, 135, 162] },
+      { "name": "Expenses", "data": [85,  92,  105] }
+    ],
+    "categories": ["Jan", "Feb", "Mar"]
+  }
+}
+
+Series Path      →  data.series
+Name Field       →  name        (series label)
+Data Field       →  data        (array of numbers)
+Categories Path  →  data.categories  (x-axis labels)`}</Code>
+    </Stack>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Validation badge
 // ---------------------------------------------------------------------------
 
 function ValidationBadge({ result }: { result: ValidationResult | null }) {
   if (!result) return null
-  if (!result.ok) {
-    return (
-      <Group gap={4} mt={2}>
-        <ThemeIcon color="red" size="xs" variant="transparent">
-          <IconAlertCircle size={12} />
-        </ThemeIcon>
-        <Text size="xs" c="red">{result.message}</Text>
-      </Group>
-    )
-  }
-  if (result.warning) {
-    return (
-      <Group gap={4} mt={2}>
-        <ThemeIcon color="yellow" size="xs" variant="transparent">
-          <IconAlertTriangle size={12} />
-        </ThemeIcon>
-        <Text size="xs" c="yellow.7">{result.message}</Text>
-      </Group>
-    )
-  }
+  if (!result.ok) return (
+    <Group gap={4} mt={2}>
+      <ThemeIcon color="red" size="xs" variant="transparent"><IconAlertCircle size={12} /></ThemeIcon>
+      <Text size="xs" c="red">{result.message}</Text>
+    </Group>
+  )
+  if (result.warning) return (
+    <Group gap={4} mt={2}>
+      <ThemeIcon color="yellow" size="xs" variant="transparent"><IconAlertTriangle size={12} /></ThemeIcon>
+      <Text size="xs" c="yellow.7">{result.message}</Text>
+    </Group>
+  )
   return (
     <Group gap={4} mt={2}>
-      <ThemeIcon color="green" size="xs" variant="transparent">
-        <IconCircleCheck size={12} />
-      </ThemeIcon>
+      <ThemeIcon color="green" size="xs" variant="transparent"><IconCircleCheck size={12} /></ThemeIcon>
       <Text size="xs" c="green">{result.message}</Text>
     </Group>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Droppable path input — accepts a path dragged from the explorer
+// Droppable path input
 // ---------------------------------------------------------------------------
 
 interface DroppableInputProps {
@@ -89,10 +139,13 @@ interface DroppableInputProps {
   value: string
   onChange: (v: string) => void
   validation: ValidationResult | null
+  required?: boolean
+  showError?: boolean
 }
 
-function DroppableInput({ label, description, placeholder, value, onChange, validation }: DroppableInputProps) {
+function DroppableInput({ label, description, placeholder, value, onChange, validation, required, showError }: DroppableInputProps) {
   const [dragOver, setDragOver] = useState(false)
+  const emptyError = showError && required && !value.trim() ? `${label} is required.` : undefined
 
   return (
     <Box>
@@ -101,6 +154,8 @@ function DroppableInput({ label, description, placeholder, value, onChange, vali
         description={description}
         placeholder={placeholder}
         value={value}
+        required={required}
+        error={emptyError}
         onChange={(e) => onChange(e.currentTarget.value)}
         size="sm"
         styles={{
@@ -118,73 +173,30 @@ function DroppableInput({ label, description, placeholder, value, onChange, vali
           const path = e.dataTransfer.getData('text/plain')
           if (path) onChange(path)
         }}
-        rightSection={
-          dragOver ? (
-            <Text size="xs" c="blue" style={{ whiteSpace: 'nowrap', paddingRight: 4 }}>Drop here</Text>
-          ) : null
-        }
+        rightSection={dragOver
+          ? <Text size="xs" c="blue" style={{ whiteSpace: 'nowrap', paddingRight: 4 }}>Drop here</Text>
+          : null}
         rightSectionWidth={80}
       />
-      <ValidationBadge result={validation} />
+      {/* Validation feedback (only if no empty-error shown) */}
+      {!emptyError && <ValidationBadge result={validation} />}
     </Box>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Path Explorer — right panel
+// Path explorer (right panel)
 // ---------------------------------------------------------------------------
 
-function PathExplorer({ paths }: { paths: PathNode[] }) {
-  const groups = {
-    objects: paths.filter((p) => p.type === 'array-of-objects'),
-    primitives: paths.filter((p) => p.type === 'array-of-primitives'),
-    other: paths.filter((p) => !['array-of-objects', 'array-of-primitives'].includes(p.type) && p.path !== '(root)'),
-  }
-
-  if (paths.length === 0) {
-    return <Text size="xs" c="dimmed" ta="center" mt="xl">No paths extracted</Text>
-  }
-
-  return (
-    <Stack gap="sm">
-      {groups.objects.length > 0 && (
-        <Stack gap={4}>
-          <Text size="xs" fw={600} c="dimmed" tt="uppercase">Arrays of objects</Text>
-          <Text size="xs" c="dimmed">Good for: Series path, Rows path</Text>
-          {groups.objects.map((p) => <PathChip key={p.path} node={p} color="blue" />)}
-        </Stack>
-      )}
-      {groups.primitives.length > 0 && (
-        <Stack gap={4}>
-          <Text size="xs" fw={600} c="dimmed" tt="uppercase">Arrays of values</Text>
-          <Text size="xs" c="dimmed">Good for: Categories path</Text>
-          {groups.primitives.map((p) => <PathChip key={p.path} node={p} color="teal" />)}
-        </Stack>
-      )}
-      {groups.other.length > 0 && (
-        <Stack gap={4}>
-          <Text size="xs" fw={600} c="dimmed" tt="uppercase">Other paths</Text>
-          {groups.other.slice(0, 12).map((p) => <PathChip key={p.path} node={p} color="gray" />)}
-        </Stack>
-      )}
-    </Stack>
-  )
-}
-
 function PathChip({ node, color }: { node: PathNode; color: string }) {
-  const handleDragStart = (e: React.DragEvent) => {
-    // Strip [*] wildcards when dropping into a simple dot-path input
-    const cleanPath = node.path.replace(/\[\*\]/g, '')
-    e.dataTransfer.setData('text/plain', cleanPath)
-    e.dataTransfer.effectAllowed = 'copy'
-  }
-
   return (
     <Paper
       draggable
-      onDragStart={handleDragStart}
-      withBorder
-      p={6}
+      onDragStart={(e) => {
+        e.dataTransfer.setData('text/plain', node.path.replace(/\[\*\]/g, ''))
+        e.dataTransfer.effectAllowed = 'copy'
+      }}
+      withBorder p={6}
       style={{ cursor: 'grab', userSelect: 'none' }}
     >
       <Group gap="xs" wrap="nowrap">
@@ -205,15 +217,49 @@ function PathChip({ node, color }: { node: PathNode; color: string }) {
   )
 }
 
+function PathExplorer({ paths }: { paths: PathNode[] }) {
+  const objPaths  = paths.filter((p) => p.type === 'array-of-objects')
+  const valPaths  = paths.filter((p) => p.type === 'array-of-primitives')
+  const otherPaths = paths.filter((p) => !['array-of-objects', 'array-of-primitives'].includes(p.type) && p.path !== '(root)')
+
+  if (paths.length === 0) return (
+    <Text size="xs" c="dimmed" ta="center" mt="xl">No paths extracted yet.</Text>
+  )
+
+  return (
+    <Stack gap="sm">
+      {objPaths.length > 0 && (
+        <Stack gap={4}>
+          <Text size="xs" fw={600} c="dimmed" tt="uppercase">Arrays of objects</Text>
+          <Text size="xs" c="dimmed">Good for: Series path, Rows path</Text>
+          {objPaths.map((p) => <PathChip key={p.path} node={p} color="blue" />)}
+        </Stack>
+      )}
+      {valPaths.length > 0 && (
+        <Stack gap={4}>
+          <Text size="xs" fw={600} c="dimmed" tt="uppercase">Arrays of values</Text>
+          <Text size="xs" c="dimmed">Good for: Categories path</Text>
+          {valPaths.map((p) => <PathChip key={p.path} node={p} color="teal" />)}
+        </Stack>
+      )}
+      {otherPaths.length > 0 && (
+        <Stack gap={4}>
+          <Text size="xs" fw={600} c="dimmed" tt="uppercase">Other paths</Text>
+          {otherPaths.slice(0, 10).map((p) => <PathChip key={p.path} node={p} color="gray" />)}
+        </Stack>
+      )}
+    </Stack>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Auto-detect helpers
 // ---------------------------------------------------------------------------
 
 function findFirstArrayOfObjects(obj: unknown, prefix = '', depth = 0): { path: string; rows: Record<string, unknown>[] } | null {
   if (depth > 5) return null
-  if (Array.isArray(obj) && obj.length > 0 && typeof obj[0] === 'object' && obj[0] !== null) {
+  if (Array.isArray(obj) && obj.length > 0 && typeof obj[0] === 'object' && obj[0] !== null)
     return { path: prefix, rows: obj as Record<string, unknown>[] }
-  }
   if (typeof obj === 'object' && obj !== null && !Array.isArray(obj)) {
     for (const [key, val] of Object.entries(obj as Record<string, unknown>)) {
       const hit = findFirstArrayOfObjects(val, prefix ? `${prefix}.${key}` : key, depth + 1)
@@ -241,9 +287,7 @@ function findCategoriesPath(obj: unknown, prefix = '', depth = 0): string | null
   if (typeof obj === 'object' && obj !== null && !Array.isArray(obj)) {
     for (const key of ['categories', 'labels', 'xAxis', ...Object.keys(obj as object)]) {
       if (!(key in (obj as object))) continue
-      const val = (obj as Record<string, unknown>)[key]
-      const childPath = prefix ? `${prefix}.${key}` : key
-      const hit = findCategoriesPath(val, childPath, depth + 1)
+      const hit = findCategoriesPath((obj as Record<string, unknown>)[key], prefix ? `${prefix}.${key}` : key, depth + 1)
       if (hit) return hit
     }
   }
@@ -256,18 +300,21 @@ function findCategoriesPath(obj: unknown, prefix = '', depth = 0): string | null
 
 export function Step5_ResponseMapping() {
   const { draft, updateDraft, apiPreviewResponse } = useWidgetWizardStore()
+  const { showErrors } = useWizardValidation()
+
   const type = draft.type
   const mapping = (draft as { responseMapping?: ChartResponseMapping | GridResponseMapping }).responseMapping
   const chartConfig: ChartConfig = (draft as { chartConfig?: ChartConfig }).chartConfig ?? { chartType: 'line', showDataLabels: false }
 
   const isChart = type === 'chart'
-  const isGrid = type === 'grid'
+  const isGrid  = type === 'grid'
   const hasResponse = apiPreviewResponse !== null && apiPreviewResponse !== undefined
   const chartType = chartConfig.chartType ?? 'line'
+  const isPie = PIE_TYPES.includes(chartType)
 
   const paths = hasResponse ? extractPaths(apiPreviewResponse) : []
 
-  // ── Mapping helpers ──────────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────────────
 
   const setMapping = (partial: Partial<ChartResponseMapping | GridResponseMapping>) =>
     updateDraft({ responseMapping: { ...mapping, ...partial } as never } as never)
@@ -280,21 +327,19 @@ export function Step5_ResponseMapping() {
     setMapping({ fieldMappings: current.map((fm, i) => (i === idx ? { ...fm, ...partial } : fm)) })
   }
 
-  const addFieldMapping = () => {
+  const addFieldMapping = () =>
     setMapping({ fieldMappings: [...(mapping?.fieldMappings ?? []), { sourceField: '', targetField: '' }] })
-  }
 
-  const removeFieldMapping = (idx: number) => {
+  const removeFieldMapping = (idx: number) =>
     setMapping({ fieldMappings: (mapping?.fieldMappings ?? []).filter((_, i) => i !== idx) })
-  }
 
-  // ── Validation ───────────────────────────────────────────────────────────
+  // ── Validation ────────────────────────────────────────────────────────────
 
   const seriesValidation: ValidationResult | null = hasResponse && isChart
     ? validateSeriesPath(apiPreviewResponse, (mapping as ChartResponseMapping)?.seriesPath ?? '', chartType)
     : null
 
-  const categoriesValidation: ValidationResult | null = hasResponse && isChart
+  const categoriesValidation: ValidationResult | null = hasResponse && isChart && !isPie
     ? validateCategoriesPath(apiPreviewResponse, (mapping as ChartResponseMapping)?.categoriesPath ?? '')
     : null
 
@@ -302,14 +347,13 @@ export function Step5_ResponseMapping() {
     ? validateRowsPath(apiPreviewResponse, (mapping as GridResponseMapping)?.rowsPath ?? '')
     : null
 
-  // ── Auto-detect ──────────────────────────────────────────────────────────
+  // ── Auto-detect ───────────────────────────────────────────────────────────
 
   const autoDetect = () => {
     if (!hasResponse) return
-
     if (isChart) {
       const seriesPath = findSeriesPath(apiPreviewResponse) ?? ''
-      const categoriesPath = findCategoriesPath(apiPreviewResponse) ?? ''
+      const categoriesPath = isPie ? '' : (findCategoriesPath(apiPreviewResponse) ?? '')
       const update: Partial<ChartResponseMapping> = { seriesPath, categoriesPath }
       if (seriesPath) {
         const arr = seriesPath.split('.').reduce<unknown>((o, k) => (o as Record<string, unknown>)?.[k], apiPreviewResponse)
@@ -321,13 +365,12 @@ export function Step5_ResponseMapping() {
       }
       setMapping(update)
     }
-
     if (isGrid) {
       const found = findFirstArrayOfObjects(apiPreviewResponse)
       if (!found) return
       const fields: FieldMapping[] = Object.keys(found.rows[0]).map((key) => {
         const sample = found.rows[0][key]
-        let transform: FieldMapping['transform'] = undefined
+        let transform: FieldMapping['transform']
         if (typeof sample === 'number') transform = 'number'
         else if (typeof sample === 'boolean') transform = 'boolean'
         else if (typeof sample === 'string' && /^\d{4}-\d{2}-\d{2}/.test(sample)) transform = 'date'
@@ -337,29 +380,31 @@ export function Step5_ResponseMapping() {
     }
   }
 
-  // ── Render ───────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  const chartMapping = mapping as ChartResponseMapping | undefined
+  const gridMapping  = mapping as GridResponseMapping  | undefined
 
   return (
     <Grid gutter="md">
-      {/* ── Left: mapping form ─────────────────────────────────────── */}
+
+      {/* ── LEFT: mapping form ──────────────────────────────────────── */}
       <Grid.Col span={{ base: 12, md: 6 }}>
         <Stack gap="sm">
 
-          {/* Chart type picker — must come first so validation is accurate */}
+          {/* 1. Chart type picker — must be chosen before paths so validation is accurate */}
           {isChart && (
             <>
-              <Text fw={600} size="sm">1. Choose chart type first</Text>
+              <Text fw={600} size="sm">1. Choose chart type</Text>
               <SimpleGrid cols={4} spacing={6}>
                 {CHART_TYPES.map((ct) => (
                   <Card
                     key={ct.value}
-                    withBorder
-                    padding={6}
+                    withBorder padding={6}
                     style={{
-                      cursor: 'pointer',
-                      textAlign: 'center',
+                      cursor: 'pointer', textAlign: 'center',
                       borderColor: chartType === ct.value ? 'var(--mantine-color-blue-6)' : undefined,
-                      background: chartType === ct.value ? 'var(--mantine-color-blue-0)' : undefined,
+                      background:  chartType === ct.value ? 'var(--mantine-color-blue-0)' : undefined,
                     }}
                     onClick={() => setChartType(ct.value)}
                   >
@@ -372,19 +417,14 @@ export function Step5_ResponseMapping() {
             </>
           )}
 
+          {/* 2. Paths */}
           <Group justify="space-between" align="center">
             <Text fw={600} size="sm">{isChart ? '2. Map response paths' : 'Map response paths'}</Text>
             <Tooltip
-              label={!hasResponse ? 'Run the API test in step 4 first' : 'Auto-fill paths and field names from the response'}
+              label={!hasResponse ? 'Run the API test in Step 4 first' : 'Auto-fill paths and fields from the response'}
               withArrow
             >
-              <Button
-                size="xs"
-                variant="light"
-                leftSection={<IconWand size={14} />}
-                onClick={autoDetect}
-                disabled={!hasResponse}
-              >
+              <Button size="xs" variant="light" leftSection={<IconWand size={14} />} onClick={autoDetect} disabled={!hasResponse}>
                 Auto-detect
               </Button>
             </Tooltip>
@@ -392,63 +432,82 @@ export function Step5_ResponseMapping() {
 
           {!hasResponse ? (
             <Alert icon={<IconAlertCircle size={14} />} color="yellow" p="xs">
-              No test response yet — go back to Step 4 and run the request.
-              You can still configure paths manually.
+              No test response yet. Go back to Step 4 and run the request — then use Auto-detect.
             </Alert>
           ) : (
             <Alert icon={<IconCircleCheck size={14} />} color="green" p="xs">
-              Response available. <strong>Drag</strong> paths from the right panel or click <strong>Auto-detect</strong>.
+              Response available. <strong>Drag</strong> a path chip from the right, or click <strong>Auto-detect</strong>.
             </Alert>
           )}
 
+          {/* Chart paths — different fields for pie/donut vs others */}
           {isChart && (
             <>
               <DroppableInput
-                label="Series Path"
-                description='Path to the series array — e.g. "data.series"'
+                label="Series Array Path"
+                description={isPie
+                  ? 'Path to series array. Each item needs a "data" field with [{name, y}] points.'
+                  : 'Path to series array. Each item needs "name" and "data" (array of numbers).'}
                 placeholder="data.series"
-                value={(mapping as ChartResponseMapping)?.seriesPath ?? ''}
+                value={chartMapping?.seriesPath ?? ''}
                 onChange={(v) => setMapping({ seriesPath: v } as Partial<ChartResponseMapping>)}
                 validation={seriesValidation}
+                required
+                showError={showErrors}
               />
-              <DroppableInput
+              <TextInput
                 label="Series Name Field"
+                description="Field inside each series object that holds the series label."
                 placeholder="name"
-                value={(mapping as ChartResponseMapping)?.seriesNameField ?? ''}
-                onChange={(v) => setMapping({ seriesNameField: v } as Partial<ChartResponseMapping>)}
-                validation={null}
+                value={chartMapping?.seriesNameField ?? ''}
+                onChange={(e) => setMapping({ seriesNameField: e.currentTarget.value } as Partial<ChartResponseMapping>)}
+                size="sm"
               />
-              <DroppableInput
-                label="Series Data Field"
+              <TextInput
+                label={isPie ? 'Data Points Field' : 'Series Data Field'}
+                description={isPie
+                  ? 'Field inside each series object that holds the [{name, y}] points array.'
+                  : 'Field inside each series object that holds the array of numbers.'}
                 placeholder="data"
-                value={(mapping as ChartResponseMapping)?.seriesDataField ?? ''}
-                onChange={(v) => setMapping({ seriesDataField: v } as Partial<ChartResponseMapping>)}
-                validation={null}
+                value={chartMapping?.seriesDataField ?? ''}
+                onChange={(e) => setMapping({ seriesDataField: e.currentTarget.value } as Partial<ChartResponseMapping>)}
+                size="sm"
               />
-              <DroppableInput
-                label="Categories Path (optional)"
-                description='Array of x-axis labels — e.g. "data.categories"'
-                placeholder="data.categories"
-                value={(mapping as ChartResponseMapping)?.categoriesPath ?? ''}
-                onChange={(v) => setMapping({ categoriesPath: v } as Partial<ChartResponseMapping>)}
-                validation={categoriesValidation}
-              />
+              {!isPie && (
+                <DroppableInput
+                  label="Categories Path (optional)"
+                  description={'Path to array of x-axis labels e.g. ["Jan","Feb"]. Leave empty for numeric x-axis.'}
+                  placeholder="data.categories"
+                  value={chartMapping?.categoriesPath ?? ''}
+                  onChange={(v) => setMapping({ categoriesPath: v } as Partial<ChartResponseMapping>)}
+                  validation={categoriesValidation}
+                />
+              )}
+              {isPie && (
+                <Alert icon={<IconInfoCircle size={14} />} color="blue" p="xs">
+                  Pie / Donut charts do not use Categories — the slice labels come from the <Code>name</Code> field inside each data point object.
+                </Alert>
+              )}
             </>
           )}
 
+          {/* Grid paths */}
           {isGrid && (
             <DroppableInput
               label="Rows Path"
-              description='Path to the array of row objects — e.g. "data.items"'
+              description='Path to the array of row objects, e.g. "data.items".'
               placeholder="data.items"
-              value={(mapping as GridResponseMapping)?.rowsPath ?? ''}
+              value={gridMapping?.rowsPath ?? ''}
               onChange={(v) => setMapping({ rowsPath: v } as Partial<GridResponseMapping>)}
               validation={rowsValidation}
+              required
+              showError={showErrors}
             />
           )}
 
           <Divider />
 
+          {/* Field mappings */}
           <Text size="sm" fw={500}>Field Mappings — rename columns and coerce types</Text>
           <Table fz="xs">
             <Table.Thead>
@@ -463,28 +522,16 @@ export function Step5_ResponseMapping() {
               {(mapping?.fieldMappings ?? []).map((fm, idx) => (
                 <Table.Tr key={idx}>
                   <Table.Td>
-                    <TextInput
-                      size="xs"
-                      placeholder="apiField"
-                      value={fm.sourceField}
-                      onChange={(e) => setFieldMapping(idx, { sourceField: e.currentTarget.value })}
-                    />
+                    <TextInput size="xs" placeholder="apiField" value={fm.sourceField}
+                      onChange={(e) => setFieldMapping(idx, { sourceField: e.currentTarget.value })} />
                   </Table.Td>
                   <Table.Td>
-                    <TextInput
-                      size="xs"
-                      placeholder="Column Label"
-                      value={fm.targetField}
-                      onChange={(e) => setFieldMapping(idx, { targetField: e.currentTarget.value })}
-                    />
+                    <TextInput size="xs" placeholder="Column Label" value={fm.targetField}
+                      onChange={(e) => setFieldMapping(idx, { targetField: e.currentTarget.value })} />
                   </Table.Td>
                   <Table.Td>
-                    <Select
-                      size="xs"
-                      data={TRANSFORMS}
-                      value={fm.transform ?? ''}
-                      onChange={(v) => setFieldMapping(idx, { transform: (v || undefined) as FieldMapping['transform'] })}
-                    />
+                    <Select size="xs" data={TRANSFORMS} value={fm.transform ?? ''}
+                      onChange={(v) => setFieldMapping(idx, { transform: (v || undefined) as FieldMapping['transform'] })} />
                   </Table.Td>
                   <Table.Td>
                     <ActionIcon variant="subtle" color="red" size="xs" onClick={() => removeFieldMapping(idx)}>
@@ -501,29 +548,33 @@ export function Step5_ResponseMapping() {
         </Stack>
       </Grid.Col>
 
-      {/* ── Right: path explorer ───────────────────────────────────── */}
+      {/* ── RIGHT: expected structure + path explorer ───────────────── */}
       <Grid.Col span={{ base: 12, md: 6 }}>
-        <Stack gap="xs">
+        <Stack gap="sm">
           <Group justify="space-between">
             <Text fw={600} size="sm">Response Paths</Text>
-            {hasResponse && (
-              <Badge color="green" variant="dot" size="sm">Live from step 4</Badge>
-            )}
+            {hasResponse && <Badge color="green" variant="dot" size="sm">Live from Step 4</Badge>}
           </Group>
+
+          {/* Expected JSON structure — helps user understand what shape is needed */}
+          {isChart && (
+            <Paper withBorder p="xs" bg="var(--mantine-color-default-hover)">
+              <ExpectedStructure chartType={chartType} />
+            </Paper>
+          )}
+
           <Text size="xs" c="dimmed">
             {hasResponse
-              ? 'Drag a path chip onto an input field on the left, or click Auto-detect.'
-              : 'Run the API test in Step 4 to see available paths here.'}
+              ? 'Drag a chip onto a path field, or click Auto-detect.'
+              : 'Run the API test in Step 4 to see available paths.'}
           </Text>
 
           {!hasResponse ? (
-            <Paper withBorder p="md" style={{ minHeight: 160 }}>
-              <Text size="xs" c="dimmed" ta="center" mt="lg">
-                No response available yet.
-              </Text>
+            <Paper withBorder p="md" style={{ minHeight: 120 }}>
+              <Text size="xs" c="dimmed" ta="center" mt="lg">No response yet.</Text>
             </Paper>
           ) : (
-            <ScrollArea h={440} style={{ border: '1px solid var(--mantine-color-default-border)', borderRadius: 4 }} p="xs">
+            <ScrollArea h={360} style={{ border: '1px solid var(--mantine-color-default-border)', borderRadius: 4 }} p="xs">
               <PathExplorer paths={paths} />
             </ScrollArea>
           )}

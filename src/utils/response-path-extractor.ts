@@ -142,12 +142,20 @@ export function validateSeriesPath(
     if (Array.isArray(seriesData) && seriesData.length > 0) {
       const firstDataItem = seriesData[0]
       if (typeof firstDataItem === 'number') {
-        return { ok: true, warning: true, message: 'Pie/Donut expects {name, y} objects in data, got numbers' }
+        return {
+          ok: false,
+          warning: false,
+          message: 'Chart type mismatch: Pie/Donut charts require data items with {name, y} fields, but this path contains plain numbers. Switch to a line/bar/area chart, or point to a different data path.',
+        }
       }
     }
   } else {
-    if (Array.isArray(seriesData) && seriesData.length > 0 && typeof seriesData[0] === 'object' && 'y' in (seriesData[0] as object)) {
-      return { ok: true, warning: true, message: 'Data contains {y} objects — consider using Pie or Donut chart type' }
+    if (Array.isArray(seriesData) && seriesData.length > 0 && typeof seriesData[0] === 'object' && seriesData[0] !== null && 'y' in (seriesData[0] as object) && !('data' in (seriesData[0] as object))) {
+      return {
+        ok: false,
+        warning: false,
+        message: 'Chart type mismatch: This data contains {name, y} slice objects (Pie/Donut format). Switch to Pie or Donut chart type, or point to a different data path.',
+      }
     }
   }
 

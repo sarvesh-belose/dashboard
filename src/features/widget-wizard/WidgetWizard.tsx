@@ -1,9 +1,10 @@
-import type { ComponentType } from 'react'
-import { Modal, Button, Group, Divider, Box, ScrollArea } from '@mantine/core'
+import { useState, type ComponentType } from 'react'
+import { Modal, Button, Group, Divider, Box, ScrollArea, Text } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useWidgetWizardStore } from '@/store/widget-wizard.store'
 import { useDashboardStore } from '@/store/dashboard.store'
 import { WizardProgressBar } from './WizardProgressBar'
+import { WizardValidationContext } from './WizardValidationContext'
 import { Step1_SelectType } from './steps/Step1_SelectType'
 import { Step2_BasicInfo } from './steps/Step2_BasicInfo'
 import { Step3_ApiConfig } from './steps/Step3_ApiConfig'
@@ -14,7 +15,8 @@ import { Step7_RbacConfig } from './steps/Step7_RbacConfig'
 import { Step8_FilterBindings } from './steps/Step8_FilterBindings'
 import { Step9_Preview } from './steps/Step9_Preview'
 import { WizardStep, WIZARD_STEPS_FOR_TYPE, WIDGET_DEFAULT_SIZES } from '@/constants/widget.constants'
-import type { Widget, WidgetType } from '@/types'
+import { validateSeriesPath } from '@/utils/response-path-extractor'
+import type { Widget, WidgetType, ChartResponseMapping, GridResponseMapping, ApiConfig, ChartWidget } from '@/types'
 
 const STEP_COMPONENTS: Record<WizardStep, ComponentType> = {
   [WizardStep.SelectType]: Step1_SelectType,
@@ -28,18 +30,49 @@ const STEP_COMPONENTS: Record<WizardStep, ComponentType> = {
   [WizardStep.Preview]: Step9_Preview,
 }
 
+// ---------------------------------------------------------------------------
+// Per-step validation rules — returns error message or null
+// ---------------------------------------------------------------------------
+function getStepError(step: WizardStep, draft: Partial<Widget>): string | null {
+  switch (step) {
+    case WizardStep.BasicInfo:
+      if (!draft.title?.trim()) return 'Widget title is required.'
+      return null
+
+    case WizardStep.ApiConfig: {
+      const url = (draft as { apiConfig?: ApiConfig }).apiConfig?.url?.trim()
+      if (!url) return 'Endpoint URL is required.'
+      try { new URL(url) } catch { return 'Endpoint URL must be a valid URL (e.g. https://api.example.com/data).' }
+      return null
+    }
+
+    case WizardStep.ResponseMapping: {
+      const mapping = (draft as { responseMapping?: ChartResponseMapping | GridResponseMapping }).responseMapping
+      if (draft.type === 'chart') {
+        if (!(mapping as ChartResponseMapping)?.seriesPath?.trim())
+          return 'Series Path is required. Run the API test and use Auto-detect, or enter the path manually.'
+      }
+      if (draft.type === 'grid') {
+        if (!(mapping as GridResponseMapping)?.rowsPath?.trim())
+          return 'Rows Path is required. Run the API test and use Auto-detect, or enter the path manually.'
+      }
+      return null
+    }
+
+    default:
+      return null
+  }
+}
+
 export function WidgetWizard() {
   const {
-    isOpen,
-    currentStep,
-    draft,
-    editingWidgetId,
-    closeWizard,
-    nextStep,
-    prevStep,
+    isOpen, currentStep, draft, editingWidgetId,
+    closeWizard, nextStep, prevStep,
+    apiPreviewResponse,
   } = useWidgetWizardStore()
 
   const { addWidget, updateWidget, dashboard } = useDashboardStore()
+  const [showErrors, setShowErrors] = useState(false)
 
   const StepComponent = STEP_COMPONENTS[currentStep]
   const type = draft.type as WidgetType | undefined
@@ -48,35 +81,62 @@ export function WidgetWizard() {
   const isLastStep = currentIdx === steps.length - 1
   const isFirstStep = currentIdx === 0
 
+  const stepError = getStepError(currentStep, draft as Partial<Widget>)
+
+  const handleNext = () => {
+    if (currentStep === WizardStep.SelectType && !draft.type) {
+      setShowErrors(true)
+      return
+    }
+    if (stepError) {
+      setShowErrors(true)
+      return
+    }
+    setShowErrors(false)
+    nextStep()
+  }
+
   const handleSave = () => {
-    if (!draft.type || !draft.title) return
+    if (!draft.type || !draft.title) {
+      setShowErrors(true)
+      return
+    }
+
+    // Chart type vs data structure mismatch check
+    if (draft.type === 'chart' && apiPreviewResponse) {
+      const chartDraft = draft as Partial<ChartWidget>
+      const seriesPath = chartDraft.responseMapping?.seriesPath
+      const chartType = chartDraft.chartConfig?.chartType
+      if (seriesPath && chartType) {
+        const result = validateSeriesPath(apiPreviewResponse, seriesPath, chartType)
+        if (!result.ok) {
+          notifications.show({
+            title: 'Chart type / data mismatch',
+            message: result.message,
+            color: 'red',
+            autoClose: 8000,
+          })
+          return
+        }
+      }
+    }
 
     const now = new Date().toISOString()
     const id = editingWidgetId ?? crypto.randomUUID()
     const widget: Widget = {
-      ...draft,
-      id,
-      type: draft.type,
-      title: draft.title,
+      ...draft, id,
+      type: draft.type, title: draft.title,
       roles: draft.roles ?? [],
       filterBindings: draft.filterBindings ?? [],
-      createdAt: now,
-      updatedAt: now,
+      createdAt: now, updatedAt: now,
     } as Widget
 
     if (editingWidgetId) {
       updateWidget(editingWidgetId, widget)
     } else {
       const size = WIDGET_DEFAULT_SIZES[type!]
-      const existingItems = dashboard?.layout.lg ?? []
-      const maxY = existingItems.reduce((m, i) => Math.max(m, i.y + i.h), 0)
-      addWidget(widget, {
-        i: id,
-        x: 0,
-        y: maxY,
-        w: size.w,
-        h: size.h,
-      })
+      const maxY = (dashboard?.layout.lg ?? []).reduce((m, i) => Math.max(m, i.y + i.h), 0)
+      addWidget(widget, { i: id, x: 0, y: maxY, w: size.w, h: size.h })
     }
 
     notifications.show({
@@ -84,7 +144,6 @@ export function WidgetWizard() {
       message: `"${widget.title}" has been ${editingWidgetId ? 'updated' : 'added'} to your dashboard.`,
       color: 'green',
     })
-
     closeWizard()
   }
 
@@ -97,44 +156,40 @@ export function WidgetWizard() {
       centered
       styles={{ body: { padding: 0 } }}
     >
-      <Box p="md" pt="xs">
-        {type && <WizardProgressBar />}
+      <WizardValidationContext.Provider value={{ showErrors }}>
+        <Box p="md" pt="xs">
+          {type && <WizardProgressBar />}
 
-        <ScrollArea style={{ maxHeight: 'calc(80vh - 160px)' }} p="xs">
-          {StepComponent && <StepComponent />}
-        </ScrollArea>
+          <ScrollArea style={{ maxHeight: 'calc(80vh - 180px)' }} p="xs">
+            {StepComponent && <StepComponent />}
+          </ScrollArea>
 
-        <Divider my="sm" />
-
-        <Group justify="space-between">
-          <Button
-            variant="subtle"
-            onClick={isFirstStep ? closeWizard : prevStep}
-            size="sm"
-          >
-            {isFirstStep ? 'Cancel' : 'Back'}
-          </Button>
-
-          {!isLastStep ? (
-            <Button
-              onClick={nextStep}
-              disabled={currentStep === WizardStep.SelectType && !draft.type}
-              size="sm"
-            >
-              Next
-            </Button>
-          ) : (
-            <Button
-              onClick={handleSave}
-              disabled={!draft.title}
-              color="green"
-              size="sm"
-            >
-              {editingWidgetId ? 'Update Widget' : 'Add to Dashboard'}
-            </Button>
+          {/* Step-level error shown above the nav buttons */}
+          {showErrors && stepError && (
+            <Text c="red" size="sm" mt="xs" px="xs">
+              {stepError}
+            </Text>
           )}
-        </Group>
-      </Box>
+
+          <Divider my="sm" />
+
+          <Group justify="space-between">
+            <Button variant="subtle" onClick={isFirstStep ? closeWizard : prevStep} size="sm">
+              {isFirstStep ? 'Cancel' : 'Back'}
+            </Button>
+
+            {!isLastStep ? (
+              <Button onClick={handleNext} size="sm">
+                Next
+              </Button>
+            ) : (
+              <Button onClick={handleSave} color="green" size="sm">
+                {editingWidgetId ? 'Update Widget' : 'Add to Dashboard'}
+              </Button>
+            )}
+          </Group>
+        </Box>
+      </WizardValidationContext.Provider>
     </Modal>
   )
 }

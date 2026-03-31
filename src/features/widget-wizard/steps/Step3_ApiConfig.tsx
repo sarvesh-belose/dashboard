@@ -1,5 +1,6 @@
 import { Stack, TextInput, Select, Textarea, Accordion, PasswordInput, Text } from '@mantine/core'
 import { useWidgetWizardStore } from '@/store/widget-wizard.store'
+import { useWizardValidation } from '../WizardValidationContext'
 import { KeyValueEditor } from '@/components/KeyValueEditor'
 import { AUTH_TYPE_LABELS } from '@/constants/auth.constants'
 import type { ApiConfig, AuthType, HttpMethod } from '@/types'
@@ -19,10 +20,17 @@ const defaultApiConfig: ApiConfig = {
 
 export function Step3_ApiConfig() {
   const { draft, updateDraft } = useWidgetWizardStore()
+  const { showErrors } = useWizardValidation()
   const apiConfig: ApiConfig = (draft as { apiConfig?: ApiConfig }).apiConfig ?? defaultApiConfig
 
   const set = (partial: Partial<ApiConfig>) =>
     updateDraft({ apiConfig: { ...apiConfig, ...partial } } as never)
+
+  const urlError = showErrors && !apiConfig.url.trim()
+    ? 'Endpoint URL is required.'
+    : showErrors && apiConfig.url.trim()
+      ? (() => { try { new URL(apiConfig.url.trim()); return undefined } catch { return 'Must be a valid URL (e.g. https://api.example.com/data).' } })()
+      : undefined
 
   return (
     <Stack gap="sm">
@@ -33,6 +41,7 @@ export function Step3_ApiConfig() {
         placeholder="https://api.example.com/data"
         required
         value={apiConfig.url}
+        error={urlError}
         onChange={(e) => set({ url: e.currentTarget.value })}
         size="sm"
       />

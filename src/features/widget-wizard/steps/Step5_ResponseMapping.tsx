@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
+import HighchartsReact from 'highcharts-react-official'
+import Highcharts from 'highcharts'
 import {
   Stack, Text, Select, Button, ActionIcon, TextInput, Table,
   Group, Alert, Badge, Paper, Divider, Card, SimpleGrid,
@@ -15,7 +17,10 @@ import {
   extractPaths, resolveSimplePath, validateSeriesPath, validateCategoriesPath, validateRowsPath,
   type PathNode, type ValidationResult,
 } from '@/utils/response-path-extractor'
+import { mapChartResponse } from '@/utils/response-mapper'
+import { buildHighchartsOptions } from '@/utils/chart-adapter'
 import type { FieldMapping, ChartResponseMapping, GridResponseMapping, ChartConfig, ChartType } from '@/types'
+import { getChartFamily, CHART_TYPE_META, type ChartFamily } from '@/constants/chart-families'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -29,18 +34,17 @@ const TRANSFORMS = [
   { value: 'boolean', label: 'Yes/No'  },
 ]
 
-const CHART_TYPES: { value: ChartType; label: string; icon: string }[] = [
-  { value: 'line',    label: 'Line',    icon: '📈' },
-  { value: 'bar',     label: 'Bar',     icon: '📊' },
-  { value: 'column',  label: 'Column',  icon: '📉' },
-  { value: 'area',    label: 'Area',    icon: '🏔'  },
-  { value: 'pie',     label: 'Pie',     icon: '🥧' },
-  { value: 'donut',   label: 'Donut',   icon: '🍩' },
-  { value: 'scatter', label: 'Scatter', icon: '✦'  },
-  { value: 'spline',  label: 'Spline',  icon: '〰'  },
+const FAMILY_GROUPS: { family: ChartFamily; label: string; types: ChartType[] }[] = [
+  { family: 'STANDARD', label: 'Lines & Bars',   types: ['line','spline','area','bar','column','waterfall'] },
+  { family: 'PIE',      label: 'Pie & Funnel',   types: ['pie','donut','funnel','pyramid'] },
+  { family: 'SCATTER',  label: 'Scatter',         types: ['scatter'] },
+  { family: 'BUBBLE',   label: 'Bubble',          types: ['bubble'] },
+  { family: 'HEATMAP',  label: 'Heatmap',         types: ['heatmap'] },
+  { family: 'GAUGE',    label: 'Gauge',           types: ['gauge','solidgauge'] },
+  { family: 'TREEMAP',  label: 'Treemap',         types: ['treemap'] },
 ]
 
-const PIE_TYPES: ChartType[] = ['pie', 'donut']
+const PIE_TYPES: ChartType[] = ['pie', 'donut', 'funnel', 'pyramid']
 
 // ---------------------------------------------------------------------------
 // Path option builders
@@ -71,6 +75,13 @@ function getArrayItemKeys(response: unknown, arrayPath: string): string[] {
   const first = arr[0]
   if (typeof first !== 'object' || first === null) return []
   return Object.keys(first as object)
+}
+
+// Collect all paths that resolve to a primitive number (for gauge value picker)
+function getNumberPaths(paths: PathNode[]) {
+  return paths
+    .filter((p) => p.type === 'number')
+    .map((p) => ({ value: p.path, label: `${p.path}  —  ${p.preview}` }))
 }
 
 // ---------------------------------------------------------------------------
@@ -365,6 +376,53 @@ function RawResponseViewer({ response }: { response: unknown }) {
 }
 
 // ---------------------------------------------------------------------------
+// Live mini-chart preview
+// ---------------------------------------------------------------------------
+
+function LiveChartPreview({
+  chartConfig, mapping, response,
+}: {
+  chartConfig: ChartConfig
+  mapping: ChartResponseMapping | undefined
+  response: unknown
+}) {
+  const options = useMemo(() => {
+    if (!mapping?.seriesPath) return null
+    try {
+      const mapped = mapChartResponse(response, mapping, chartConfig.chartType)
+      if (!mapped.series.length && !mapped.categories.length) return null
+      const base = buildHighchartsOptions(chartConfig, mapped.categories, mapped.series as never)
+      return {
+        ...base,
+        chart: { ...base.chart, height: 220 },
+        title: { text: '' },
+        subtitle: { text: '' },
+        legend: { enabled: false },
+        credits: { enabled: false },
+      }
+    } catch {
+      return null
+    }
+  }, [chartConfig, mapping, response])
+
+  if (!options) return null
+
+  return (
+    <Paper withBorder p="xs" radius="sm" mt={4}>
+      <Group gap={6} mb={6}>
+        <Text size="xs" fw={600} c="blue.7">Live Preview</Text>
+        <Badge size="xs" variant="dot" color="green">updates as you map</Badge>
+      </Group>
+      <HighchartsReact
+        highcharts={Highcharts}
+        options={options}
+        containerProps={{ style: { height: 220, width: '100%' } }}
+      />
+    </Paper>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Auto-detect helpers
 // ---------------------------------------------------------------------------
 
@@ -423,11 +481,13 @@ export function Step5_ResponseMapping() {
   const isGrid  = type === 'grid'
   const hasResponse = apiPreviewResponse !== null && apiPreviewResponse !== undefined
   const chartType = chartConfig.chartType ?? 'line'
+  const family = getChartFamily(chartType)
   const isPie = PIE_TYPES.includes(chartType)
 
   const paths = hasResponse ? extractPaths(apiPreviewResponse) : []
   const objectArrayOptions    = getObjectArrayOptions(paths)
   const primitiveArrayOptions = getPrimitiveArrayOptions(paths)
+  const numberPathOptions     = getNumberPaths(paths)
 
   const chartMapping = mapping as ChartResponseMapping | undefined
   const gridMapping  = mapping as GridResponseMapping  | undefined
@@ -457,11 +517,11 @@ export function Step5_ResponseMapping() {
 
   // ── Validation ────────────────────────────────────────────────────────────
 
-  const seriesValidation: ValidationResult | null = hasResponse && isChart
+  const seriesValidation: ValidationResult | null = hasResponse && isChart && family !== 'GAUGE'
     ? validateSeriesPath(apiPreviewResponse, chartMapping?.seriesPath ?? '', chartType)
     : null
 
-  const categoriesValidation: ValidationResult | null = hasResponse && isChart && !isPie
+  const categoriesValidation: ValidationResult | null = hasResponse && isChart && family === 'STANDARD'
     ? validateCategoriesPath(apiPreviewResponse, chartMapping?.categoriesPath ?? '')
     : null
 
@@ -474,15 +534,43 @@ export function Step5_ResponseMapping() {
   const autoDetect = () => {
     if (!hasResponse) return
     if (isChart) {
+      if (family === 'GAUGE') {
+        // Try common scalar paths
+        for (const p of ['value', 'data.value', 'data', 'result']) {
+          const v = resolveSimplePath(apiPreviewResponse, p)
+          if (typeof v === 'number') {
+            setMapping({ gaugeValuePath: p } as Partial<ChartResponseMapping>)
+            return
+          }
+        }
+        // Fall back to first number path found
+        if (numberPathOptions.length > 0) {
+          setMapping({ gaugeValuePath: numberPathOptions[0].value } as Partial<ChartResponseMapping>)
+        }
+        return
+      }
+
       const seriesPath = findSeriesPath(apiPreviewResponse) ?? ''
-      const categoriesPath = isPie ? '' : (findCategoriesPath(apiPreviewResponse) ?? '')
-      const update: Partial<ChartResponseMapping> = { seriesPath, categoriesPath }
+      const update: Partial<ChartResponseMapping> = { seriesPath }
+
+      if (family === 'STANDARD') {
+        update.categoriesPath = findCategoriesPath(apiPreviewResponse) ?? ''
+      }
+      if (family === 'HEATMAP') {
+        // look for xCategories / yCategories keys
+        const raw = apiPreviewResponse as Record<string, unknown>
+        const dataObj = (raw?.data ?? raw) as Record<string, unknown>
+        if (dataObj?.xCategories) update.categoriesPath = 'data.xCategories'
+        if (dataObj?.yCategories) update.yCategoriesPath = 'data.yCategories'
+      }
+
       if (seriesPath) {
         const arr = resolveSimplePath(apiPreviewResponse, seriesPath)
         if (Array.isArray(arr) && arr.length > 0) {
           const first = arr[0] as Record<string, unknown>
           if ('name' in first) update.seriesNameField = 'name'
           if ('data' in first) update.seriesDataField = 'data'
+          if (family === 'TREEMAP' && 'value' in first) update.seriesDataField = 'value'
         }
       }
       setMapping(update)
@@ -528,24 +616,37 @@ export function Step5_ResponseMapping() {
       {isChart && (
         <>
           <Box>
-            <Text size="sm" fw={600} mb={6}>What type of chart do you want?</Text>
-            <SimpleGrid cols={4} spacing={6}>
-              {CHART_TYPES.map((ct) => (
-                <Card
-                  key={ct.value}
-                  withBorder padding={6}
-                  style={{
-                    cursor: 'pointer', textAlign: 'center',
-                    borderColor: chartType === ct.value ? 'var(--mantine-color-blue-6)' : undefined,
-                    background:  chartType === ct.value ? 'var(--mantine-color-blue-0)' : undefined,
-                  }}
-                  onClick={() => setChartType(ct.value)}
-                >
-                  <Text size="md">{ct.icon}</Text>
-                  <Text size="xs">{ct.label}</Text>
-                </Card>
+            <Text size="sm" fw={600} mb={8}>What type of chart do you want?</Text>
+            <Stack gap={8}>
+              {FAMILY_GROUPS.map((group) => (
+                <Box key={group.family}>
+                  <Text size="xs" c="dimmed" fw={600} tt="uppercase" mb={4}>{group.label}</Text>
+                  <SimpleGrid cols={6} spacing={4}>
+                    {group.types.map((ct) => {
+                      const meta = CHART_TYPE_META[ct]
+                      const isSelected = chartType === ct
+                      return (
+                        <Card
+                          key={ct}
+                          withBorder
+                          padding={5}
+                          style={{
+                            cursor: 'pointer', textAlign: 'center',
+                            borderColor: isSelected ? 'var(--mantine-color-blue-6)' : undefined,
+                            background:  isSelected ? 'var(--mantine-color-blue-0)' : undefined,
+                          }}
+                          onClick={() => setChartType(ct)}
+                          title={meta.description}
+                        >
+                          <Text size="lg" style={{ lineHeight: 1 }}>{meta.icon}</Text>
+                          <Text size="xs" lh={1.2} mt={2}>{meta.label}</Text>
+                        </Card>
+                      )
+                    })}
+                  </SimpleGrid>
+                </Box>
               ))}
-            </SimpleGrid>
+            </Stack>
           </Box>
           <Divider />
         </>
@@ -556,88 +657,249 @@ export function Step5_ResponseMapping() {
 
       <Divider />
 
-      {/* ── CHART mapping questions ─────────────────────────────────────── */}
+      {/* ── CHART mapping questions (family-aware) ──────────────────────── */}
       {isChart && (
         <Stack gap="lg">
 
-          {/* Q1: Where is your data? */}
-          <SmartSelect
-            label="Where is your chart data?"
-            hint={objectArrayOptions.length > 0
-              ? `${objectArrayOptions.length} data list${objectArrayOptions.length > 1 ? 's' : ''} found in your API response — pick the one that contains your chart series.`
-              : 'Run the API test in Step 4, then the available data lists will appear here.'}
-            value={chartMapping?.seriesPath ?? ''}
-            onChange={(v) => setMapping({ seriesPath: v } as Partial<ChartResponseMapping>)}
-            options={objectArrayOptions}
-            required
-            showError={showErrors}
-            validation={seriesValidation}
-            badge="Required"
-          />
+          {/* GAUGE family: just pick the value path */}
+          {family === 'GAUGE' && (
+            <>
+              <SmartSelect
+                label="Which field in the response holds the gauge value?"
+                hint={numberPathOptions.length > 0
+                  ? `Pick the field that contains a single number — e.g. 74, 0.85. Found ${numberPathOptions.length} number field${numberPathOptions.length > 1 ? 's' : ''}.`
+                  : 'Run the API test in Step 4 first. The available number fields will appear here.'}
+                value={chartMapping?.gaugeValuePath ?? ''}
+                onChange={(v) => setMapping({ gaugeValuePath: v } as Partial<ChartResponseMapping>)}
+                options={numberPathOptions}
+                required
+                showError={showErrors}
+                badge="Required"
+              />
+              <SmartSelect
+                label="Which field holds the minimum value? (optional)"
+                hint="Defaults to 0 if not provided."
+                value={(chartMapping as ChartResponseMapping & { gaugeMinPath?: string })?.gaugeMinPath ?? ''}
+                onChange={(v) => setMapping({ ...(v ? { gaugeMinPath: v } : {}) } as Partial<ChartResponseMapping>)}
+                options={numberPathOptions}
+              />
+              <SmartSelect
+                label="Which field holds the maximum value? (optional)"
+                hint="Defaults to 100 if not provided."
+                value={(chartMapping as ChartResponseMapping & { gaugeMaxPath?: string })?.gaugeMaxPath ?? ''}
+                onChange={(v) => setMapping({ ...(v ? { gaugeMaxPath: v } : {}) } as Partial<ChartResponseMapping>)}
+                options={numberPathOptions}
+              />
+            </>
+          )}
 
-          {/* Q2: What is each series called? */}
-          <SmartSelect
-            label="What is each data series called?"
-            hint={seriesItemKeys.length
-              ? `The field that gives each line / bar its name (shown in the chart legend). Fields available: ${seriesItemKeys.join(', ')}.`
-              : 'Select "Where is your data?" above first, then the available fields will appear here.'}
-            value={chartMapping?.seriesNameField ?? ''}
-            onChange={(v) => setMapping({ seriesNameField: v } as Partial<ChartResponseMapping>)}
-            options={seriesItemKeys.map((k) => ({ value: k, label: k }))}
-            disabled={!chartMapping?.seriesPath}
-            disabledHint='Answer "Where is your chart data?" first'
-          />
+          {/* HEATMAP family */}
+          {family === 'HEATMAP' && (
+            <>
+              <SmartSelect
+                label="Where is your heatmap data?"
+                hint="Pick the list that contains each cell's data. Each item should be [column, row, value]."
+                value={chartMapping?.seriesPath ?? ''}
+                onChange={(v) => setMapping({ seriesPath: v } as Partial<ChartResponseMapping>)}
+                options={objectArrayOptions}
+                required
+                showError={showErrors}
+                badge="Required"
+              />
+              <SmartSelect
+                label="What is each series called?"
+                hint="The field that labels this heatmap series (shown in the legend)."
+                value={chartMapping?.seriesNameField ?? ''}
+                onChange={(v) => setMapping({ seriesNameField: v } as Partial<ChartResponseMapping>)}
+                options={seriesItemKeys.map((k) => ({ value: k, label: k }))}
+                disabled={!chartMapping?.seriesPath}
+              />
+              <SmartSelect
+                label="Which field holds the cell data ([col, row, value] triplets)?"
+                hint="Each triplet positions a cell on the grid and sets its colour intensity."
+                value={chartMapping?.seriesDataField ?? ''}
+                onChange={(v) => setMapping({ seriesDataField: v } as Partial<ChartResponseMapping>)}
+                options={seriesItemKeys.map((k) => ({ value: k, label: k }))}
+                disabled={!chartMapping?.seriesPath}
+              />
+              <SmartSelect
+                label="X-axis labels (columns) — optional"
+                hint='e.g. ["Mon","Tue","Wed"]. Leave empty to use column numbers.'
+                value={chartMapping?.categoriesPath ?? ''}
+                onChange={(v) => setMapping({ categoriesPath: v } as Partial<ChartResponseMapping>)}
+                options={primitiveArrayOptions}
+              />
+              <SmartSelect
+                label="Y-axis labels (rows) — optional"
+                hint='e.g. ["Morning","Afternoon","Evening"]. Leave empty to use row numbers.'
+                value={chartMapping?.yCategoriesPath ?? ''}
+                onChange={(v) => setMapping({ yCategoriesPath: v } as Partial<ChartResponseMapping>)}
+                options={primitiveArrayOptions}
+              />
+            </>
+          )}
 
-          {/* Q3: Data values field */}
-          {isPie ? (
-            <SmartSelect
-              label="Where are the pie slices?"
-              hint={seriesItemKeys.length
-                ? `The field that holds the list of slices. Each slice must have a name and a value. Fields available: ${seriesItemKeys.join(', ')}.`
-                : 'Select "Where is your data?" above first.'}
-              value={chartMapping?.seriesDataField ?? ''}
-              onChange={(v) => setMapping({ seriesDataField: v } as Partial<ChartResponseMapping>)}
-              options={seriesItemKeys.map((k) => ({ value: k, label: k }))}
-              disabled={!chartMapping?.seriesPath}
-              disabledHint='Answer "Where is your chart data?" first'
-            />
-          ) : (
-            <SmartSelect
-              label="Which field holds the numbers to plot?"
-              hint={seriesItemKeys.length
-                ? `The field inside each series that contains the list of values to draw on the chart (e.g. [120, 135, 162]). Fields available: ${seriesItemKeys.join(', ')}.`
-                : 'Select "Where is your data?" above first.'}
-              value={chartMapping?.seriesDataField ?? ''}
-              onChange={(v) => setMapping({ seriesDataField: v } as Partial<ChartResponseMapping>)}
-              options={seriesItemKeys.map((k) => ({ value: k, label: k }))}
-              disabled={!chartMapping?.seriesPath}
-              disabledHint='Answer "Where is your chart data?" first'
+          {/* SCATTER family */}
+          {family === 'SCATTER' && (
+            <>
+              <SmartSelect
+                label="Where is your scatter data?"
+                hint="Pick the list of series. Each series should have a name and a list of [x, y] coordinate pairs."
+                value={chartMapping?.seriesPath ?? ''}
+                onChange={(v) => setMapping({ seriesPath: v } as Partial<ChartResponseMapping>)}
+                options={objectArrayOptions}
+                required
+                showError={showErrors}
+                badge="Required"
+              />
+              <SmartSelect
+                label="What is each series called?"
+                hint="The field that names each group of points (shown in the legend)."
+                value={chartMapping?.seriesNameField ?? ''}
+                onChange={(v) => setMapping({ seriesNameField: v } as Partial<ChartResponseMapping>)}
+                options={seriesItemKeys.map((k) => ({ value: k, label: k }))}
+                disabled={!chartMapping?.seriesPath}
+              />
+              <SmartSelect
+                label="Which field holds the coordinate pairs?"
+                hint="Each item should be [x, y] or an object with x and y fields."
+                value={chartMapping?.seriesDataField ?? ''}
+                onChange={(v) => setMapping({ seriesDataField: v } as Partial<ChartResponseMapping>)}
+                options={seriesItemKeys.map((k) => ({ value: k, label: k }))}
+                disabled={!chartMapping?.seriesPath}
+              />
+            </>
+          )}
+
+          {/* BUBBLE family */}
+          {family === 'BUBBLE' && (
+            <>
+              <SmartSelect
+                label="Where is your bubble data?"
+                hint="Pick the list of series. Each series should have a name and a list of bubble points."
+                value={chartMapping?.seriesPath ?? ''}
+                onChange={(v) => setMapping({ seriesPath: v } as Partial<ChartResponseMapping>)}
+                options={objectArrayOptions}
+                required
+                showError={showErrors}
+                badge="Required"
+              />
+              <SmartSelect
+                label="What is each series called?"
+                hint="The field that names each group of bubbles."
+                value={chartMapping?.seriesNameField ?? ''}
+                onChange={(v) => setMapping({ seriesNameField: v } as Partial<ChartResponseMapping>)}
+                options={seriesItemKeys.map((k) => ({ value: k, label: k }))}
+                disabled={!chartMapping?.seriesPath}
+              />
+              <SmartSelect
+                label="Which field holds the bubble point objects?"
+                hint="Each item needs x (position), y (position) and z (bubble size) fields."
+                value={chartMapping?.seriesDataField ?? ''}
+                onChange={(v) => setMapping({ seriesDataField: v } as Partial<ChartResponseMapping>)}
+                options={seriesItemKeys.map((k) => ({ value: k, label: k }))}
+                disabled={!chartMapping?.seriesPath}
+              />
+            </>
+          )}
+
+          {/* TREEMAP family */}
+          {family === 'TREEMAP' && (
+            <>
+              <SmartSelect
+                label="Where is your tree data?"
+                hint="Pick the list that contains all the nodes. Each node needs a name and a value (its size)."
+                value={chartMapping?.seriesPath ?? ''}
+                onChange={(v) => setMapping({ seriesPath: v } as Partial<ChartResponseMapping>)}
+                options={objectArrayOptions}
+                required
+                showError={showErrors}
+                badge="Required"
+              />
+              <SmartSelect
+                label="Which field holds the node size value?"
+                hint='The numeric field that controls how big each rectangle is. Usually "value" or "amount".'
+                value={chartMapping?.seriesDataField ?? ''}
+                onChange={(v) => setMapping({ seriesDataField: v } as Partial<ChartResponseMapping>)}
+                options={seriesItemKeys.map((k) => ({ value: k, label: k }))}
+                disabled={!chartMapping?.seriesPath}
+              />
+            </>
+          )}
+
+          {/* STANDARD + PIE families */}
+          {(family === 'STANDARD' || family === 'PIE') && (
+            <>
+              <SmartSelect
+                label="Where is your chart data?"
+                hint={objectArrayOptions.length > 0
+                  ? `${objectArrayOptions.length} data list${objectArrayOptions.length > 1 ? 's' : ''} found — pick the one that contains your chart series.`
+                  : 'Run the API test in Step 4, then the available data lists will appear here.'}
+                value={chartMapping?.seriesPath ?? ''}
+                onChange={(v) => setMapping({ seriesPath: v } as Partial<ChartResponseMapping>)}
+                options={objectArrayOptions}
+                required
+                showError={showErrors}
+                validation={seriesValidation}
+                badge="Required"
+              />
+              <SmartSelect
+                label="What is each data series called?"
+                hint={seriesItemKeys.length
+                  ? `The field that gives each line / bar / slice group its name. Fields: ${seriesItemKeys.join(', ')}.`
+                  : 'Select "Where is your chart data?" first.'}
+                value={chartMapping?.seriesNameField ?? ''}
+                onChange={(v) => setMapping({ seriesNameField: v } as Partial<ChartResponseMapping>)}
+                options={seriesItemKeys.map((k) => ({ value: k, label: k }))}
+                disabled={!chartMapping?.seriesPath}
+                disabledHint='Answer "Where is your chart data?" first'
+              />
+              <SmartSelect
+                label={isPie ? 'Where are the slices / segments?' : 'Which field holds the numbers to plot?'}
+                hint={isPie
+                  ? `The field holding the list of slices. Each slice needs a name and a value (e.g. { name: "Chrome", y: 61 }). Fields: ${seriesItemKeys.join(', ') || '(select series path first)'}.`
+                  : `The field containing the list of values for each data point (e.g. [120, 135, 162]). Fields: ${seriesItemKeys.join(', ') || '(select series path first)'}.`}
+                value={chartMapping?.seriesDataField ?? ''}
+                onChange={(v) => setMapping({ seriesDataField: v } as Partial<ChartResponseMapping>)}
+                options={seriesItemKeys.map((k) => ({ value: k, label: k }))}
+                disabled={!chartMapping?.seriesPath}
+                disabledHint='Answer "Where is your chart data?" first'
+              />
+              {family === 'STANDARD' && (
+                <SmartSelect
+                  label="What labels go on the X-axis? (optional)"
+                  hint={primitiveArrayOptions.length > 0
+                    ? `e.g. months, product names, dates. ${primitiveArrayOptions.length} label list${primitiveArrayOptions.length > 1 ? 's' : ''} found.`
+                    : 'Leave empty to use numbers (1, 2, 3…) on the X-axis.'}
+                  value={chartMapping?.categoriesPath ?? ''}
+                  onChange={(v) => setMapping({ categoriesPath: v } as Partial<ChartResponseMapping>)}
+                  options={primitiveArrayOptions}
+                  validation={categoriesValidation}
+                />
+              )}
+            </>
+          )}
+
+          {/* Data preview (non-gauge) */}
+          {family !== 'GAUGE' && (
+            <ChartDataPreview
+              response={apiPreviewResponse}
+              seriesPath={chartMapping?.seriesPath ?? ''}
+              nameField={chartMapping?.seriesNameField ?? ''}
+              dataField={chartMapping?.seriesDataField ?? ''}
+              categoriesPath={chartMapping?.categoriesPath ?? ''}
+              chartType={chartType}
             />
           )}
 
-          {/* Q4: X-axis labels (non-pie only) */}
-          {!isPie && (
-            <SmartSelect
-              label="What labels go on the X-axis? (optional)"
-              hint={primitiveArrayOptions.length > 0
-                ? `e.g. months, product names, dates. ${primitiveArrayOptions.length} label list${primitiveArrayOptions.length > 1 ? 's' : ''} found. Leave empty to use numbers (1, 2, 3…).`
-                : 'Leave empty to use numbers on the X-axis, or add labels once you have run the API test.'}
-              value={chartMapping?.categoriesPath ?? ''}
-              onChange={(v) => setMapping({ categoriesPath: v } as Partial<ChartResponseMapping>)}
-              options={primitiveArrayOptions}
-              validation={categoriesValidation}
+          {/* Live Highcharts mini-chart preview */}
+          {isChart && hasResponse && family !== 'GAUGE' && chartMapping?.seriesPath && chartMapping?.seriesDataField && (
+            <LiveChartPreview
+              chartConfig={chartConfig}
+              mapping={chartMapping}
+              response={apiPreviewResponse}
             />
           )}
-
-          {/* Live preview of what was found */}
-          <ChartDataPreview
-            response={apiPreviewResponse}
-            seriesPath={chartMapping?.seriesPath ?? ''}
-            nameField={chartMapping?.seriesNameField ?? ''}
-            dataField={chartMapping?.seriesDataField ?? ''}
-            categoriesPath={chartMapping?.categoriesPath ?? ''}
-            chartType={chartType}
-          />
         </Stack>
       )}
 

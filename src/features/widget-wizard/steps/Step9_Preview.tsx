@@ -12,6 +12,7 @@ import Highcharts from 'highcharts'
 import { useWidgetWizardStore } from '@/store/widget-wizard.store'
 import { mapChartResponse, mapGridResponse } from '@/utils/response-mapper'
 import { buildHighchartsOptions } from '@/utils/chart-adapter'
+import { getChartFamily } from '@/constants/chart-families'
 import type {
   ChartWidget, GridWidget, ChartResponseMapping, GridResponseMapping, ChartConfig,
 } from '@/types'
@@ -59,20 +60,31 @@ function ChartPreview({ widget, rawResponse }: { widget: ChartWidget; rawRespons
 
   const mapping = widget.responseMapping as ChartResponseMapping
   const chartConfig = widget.chartConfig as ChartConfig
+  const family = getChartFamily(chartConfig.chartType)
 
-  if (!mapping?.seriesPath?.trim()) {
-    issues.push({
-      level: 'error',
-      message: 'You haven\'t told us where your chart data is yet.',
-      goBack: 'Step 5 — Map your data → "Where is your chart data?"',
-    })
-  }
-  if (!mapping?.seriesDataField?.trim()) {
-    issues.push({
-      level: 'error',
-      message: 'You haven\'t selected which field holds the values to plot.',
-      goBack: 'Step 5 — Map your data → "Which field holds the numbers?" or "Where are the pie slices?"',
-    })
+  if (family === 'GAUGE') {
+    if (!mapping?.gaugeValuePath?.trim()) {
+      issues.push({
+        level: 'error',
+        message: 'You haven\'t selected which field holds the gauge value.',
+        goBack: 'Step 5 — Map your data → "Which field holds the gauge value?"',
+      })
+    }
+  } else {
+    if (!mapping?.seriesPath?.trim()) {
+      issues.push({
+        level: 'error',
+        message: 'You haven\'t told us where your chart data is yet.',
+        goBack: 'Step 5 — Map your data → "Where is your chart data?"',
+      })
+    }
+    if (family !== 'TREEMAP' && !mapping?.seriesDataField?.trim()) {
+      issues.push({
+        level: 'error',
+        message: 'You haven\'t selected which field holds the values to plot.',
+        goBack: 'Step 5 — Map your data → "Which field holds the numbers?"',
+      })
+    }
   }
 
   if (issues.length > 0) return <IssueList issues={issues} />
@@ -80,7 +92,7 @@ function ChartPreview({ widget, rawResponse }: { widget: ChartWidget; rawRespons
   let mapped: { categories: string[]; series: { name: string; data: unknown[] }[] } | null = null
   let mapError: string | null = null
   try {
-    mapped = mapChartResponse(rawResponse, mapping)
+    mapped = mapChartResponse(rawResponse, mapping, chartConfig.chartType)
   } catch (e) {
     mapError = (e as Error).message
   }
@@ -110,8 +122,10 @@ function ChartPreview({ widget, rawResponse }: { widget: ChartWidget; rawRespons
   const mismatchSeries = mapped.series.filter((s) => {
     const d = s.data as unknown[]
     if (!d || d.length === 0) return false
-    const isPie = chartConfig.chartType === 'pie' || chartConfig.chartType === 'donut'
-    if (isPie) return typeof d[0] === 'number'
+    const isPieFamily = family === 'PIE'
+    if (isPieFamily) return typeof d[0] === 'number'
+    // For SCATTER/BUBBLE/HEATMAP/TREEMAP the data shape is not plain numbers — skip mismatch check
+    if (family !== 'STANDARD') return false
     return typeof d[0] === 'object' && d[0] !== null && 'y' in (d[0] as object)
   })
 
@@ -124,7 +138,7 @@ function ChartPreview({ widget, rawResponse }: { widget: ChartWidget; rawRespons
     })
   }
   if (mismatchSeries.length > 0) {
-    const isPie = chartConfig.chartType === 'pie' || chartConfig.chartType === 'donut'
+    const isPie = family === 'PIE'
     warnings.push({
       level: 'error',
       message: isPie

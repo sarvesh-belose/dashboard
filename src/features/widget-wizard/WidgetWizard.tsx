@@ -16,7 +16,8 @@ import { Step8_FilterBindings } from './steps/Step8_FilterBindings'
 import { Step9_Preview } from './steps/Step9_Preview'
 import { WizardStep, WIZARD_STEPS_FOR_TYPE, WIDGET_DEFAULT_SIZES } from '@/constants/widget.constants'
 import { validateSeriesPath } from '@/utils/response-path-extractor'
-import type { Widget, WidgetType, ChartResponseMapping, GridResponseMapping, ApiConfig, ChartWidget } from '@/types'
+import { getChartFamily } from '@/constants/chart-families'
+import type { Widget, WidgetType, ChartResponseMapping, GridResponseMapping, ApiConfig, ChartWidget, ChartConfig } from '@/types'
 
 const STEP_COMPONENTS: Record<WizardStep, ComponentType> = {
   [WizardStep.SelectType]: Step1_SelectType,
@@ -49,8 +50,16 @@ function getStepError(step: WizardStep, draft: Partial<Widget>): string | null {
     case WizardStep.ResponseMapping: {
       const mapping = (draft as { responseMapping?: ChartResponseMapping | GridResponseMapping }).responseMapping
       if (draft.type === 'chart') {
-        if (!(mapping as ChartResponseMapping)?.seriesPath?.trim())
-          return 'Please tell us where your chart data is. Use "Auto-detect" or pick a path from the dropdown under "Where is your chart data?".'
+        const chartConfig = (draft as { chartConfig?: ChartConfig }).chartConfig
+        const chartType = chartConfig?.chartType ?? 'line'
+        const family = getChartFamily(chartType)
+        if (family === 'GAUGE') {
+          if (!(mapping as ChartResponseMapping)?.gaugeValuePath?.trim())
+            return 'Please select which field holds the gauge value in Step 5.'
+        } else {
+          if (!(mapping as ChartResponseMapping)?.seriesPath?.trim())
+            return 'Please tell us where your chart data is. Use "Auto-detect" or pick a path from the dropdown under "Where is your chart data?".'
+        }
       }
       if (draft.type === 'grid') {
         if (!(mapping as GridResponseMapping)?.rowsPath?.trim())
@@ -102,12 +111,13 @@ export function WidgetWizard() {
       return
     }
 
-    // Chart type vs data structure mismatch check
+    // Chart type vs data structure mismatch check (skip for GAUGE — no series)
     if (draft.type === 'chart' && apiPreviewResponse) {
       const chartDraft = draft as Partial<ChartWidget>
       const seriesPath = chartDraft.responseMapping?.seriesPath
       const chartType = chartDraft.chartConfig?.chartType
-      if (seriesPath && chartType) {
+      const family = chartType ? getChartFamily(chartType) : 'STANDARD'
+      if (seriesPath && chartType && family !== 'GAUGE') {
         const result = validateSeriesPath(apiPreviewResponse, seriesPath, chartType)
         if (!result.ok) {
           notifications.show({

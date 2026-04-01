@@ -1,6 +1,6 @@
 /**
  * Initialize all required Highcharts modules.
- * Highcharts 12+ modules self-register on import — no function call needed.
+ * Webpack aliases route these to the ESM builds which self-register correctly.
  * Import this file once at app entry (main.tsx) before any chart is rendered.
  */
 import 'highcharts/highcharts-more'

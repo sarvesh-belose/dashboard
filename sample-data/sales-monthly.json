@@ -13,12 +13,5 @@
       "data": [35000, 43000, 40000, 57000, 57000, 65000, 65000, 72000, 83000, 68000, 85000, 97000]
     }
   ],
-  "categories": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-  "meta": {
-    "year": 2024,
-    "currency": "USD",
-    "total_revenue": 2233000,
-    "total_expenses": 1474000,
-    "total_profit": 767000
-  }
+  "categories": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 }

@@ -1,20 +1,15 @@
 {
-  "data": {
-    "series": [
-      {
-        "name": "Revenue by Product",
-        "data": [
-          { "name": "Enterprise Suite", "y": 45 },
-          { "name": "Professional Plan", "y": 25 },
-          { "name": "Starter Plan", "y": 15 },
-          { "name": "Add-ons", "y": 10 },
-          { "name": "Training & Support", "y": 5 }
-        ]
-      }
-    ]
-  },
-  "meta": {
-    "period": "2024",
-    "unit": "percent"
-  }
+  "series": [
+    {
+      "name": "Revenue by Product",
+      "data": [
+        { "name": "Enterprise Suite",   "y": 45 },
+        { "name": "Professional Plan",  "y": 25 },
+        { "name": "Starter Plan",       "y": 15 },
+        { "name": "Add-ons",            "y": 10 },
+        { "name": "Training & Support", "y": 5 }
+      ]
+    }
+  ],
+  "meta": { "period": "2024", "unit": "percent" }
 }

@@ -1,17 +1,15 @@
 {
-  "data": {
-    "series": [
-      {
-        "name": "Revenue Breakdown",
-        "data": [
-          { "name": "Starting Revenue", "y": 80000 },
-          { "name": "New Customers",    "y": 20000 },
-          { "name": "Upsells",          "y": 15000 },
-          { "name": "Churn",            "y": -8000 },
-          { "name": "Refunds",          "y": -3000 },
-          { "name": "Net Revenue",      "y": 104000, "isSum": true }
-        ]
-      }
-    ]
-  }
+  "series": [
+    {
+      "name": "Revenue Breakdown",
+      "data": [
+        { "name": "Starting Revenue", "y": 80000 },
+        { "name": "New Customers",    "y": 20000 },
+        { "name": "Upsells",          "y": 15000 },
+        { "name": "Churn",            "y": -8000 },
+        { "name": "Refunds",          "y": -3000 },
+        { "name": "Net Revenue",      "y": 104000, "isSum": true }
+      ]
+    }
+  ]
 }

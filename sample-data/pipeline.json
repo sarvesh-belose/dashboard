@@ -1,20 +1,8 @@
 {
-  "data": {
-    "series": [
-      {
-        "name": "Deal Count",
-        "data": [48, 35, 22, 14, 8, 5]
-      },
-      {
-        "name": "Weighted Value ($k)",
-        "data": [1440, 2100, 2640, 2520, 2160, 2250]
-      }
-    ],
-    "categories": ["Prospecting", "Qualification", "Proposal", "Negotiation", "Contract", "Closed Won"]
-  },
-  "meta": {
-    "total_pipeline_value": 13110000,
-    "currency": "USD",
-    "as_of": "2024-11-13"
-  }
+  "series": [
+    { "name": "Deal Count",           "data": [48, 35, 22, 14, 8, 5] },
+    { "name": "Weighted Value ($k)",  "data": [1440, 2100, 2640, 2520, 2160, 2250] }
+  ],
+  "categories": ["Prospecting", "Qualification", "Proposal", "Negotiation", "Contract", "Closed Won"],
+  "meta": { "total_pipeline_value": 13110000, "currency": "USD" }
 }

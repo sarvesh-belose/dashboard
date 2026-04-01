@@ -1,24 +1,22 @@
 {
-  "data": {
-    "series": [
-      {
-        "name": "APAC",
-        "data": [
-          { "x": 95, "y": 95, "z": 13.8, "name": "Japan" },
-          { "x": 86, "y": 76, "z": 9.2, "name": "Australia" },
-          { "x": 70, "y": 60, "z": 25.4, "name": "China" },
-          { "x": 55, "y": 72, "z": 7.8, "name": "South Korea" }
-        ]
-      },
-      {
-        "name": "EMEA",
-        "data": [
-          { "x": 90, "y": 85, "z": 11.5, "name": "Germany" },
-          { "x": 78, "y": 80, "z": 8.9, "name": "UK" },
-          { "x": 65, "y": 68, "z": 6.4, "name": "France" },
-          { "x": 50, "y": 55, "z": 4.2, "name": "Spain" }
-        ]
-      }
-    ]
-  }
+  "series": [
+    {
+      "name": "APAC",
+      "data": [
+        { "x": 95, "y": 95, "z": 13.8, "name": "Japan" },
+        { "x": 86, "y": 76, "z": 9.2,  "name": "Australia" },
+        { "x": 70, "y": 60, "z": 25.4, "name": "China" },
+        { "x": 55, "y": 72, "z": 7.8,  "name": "South Korea" }
+      ]
+    },
+    {
+      "name": "EMEA",
+      "data": [
+        { "x": 90, "y": 85, "z": 11.5, "name": "Germany" },
+        { "x": 78, "y": 80, "z": 8.9,  "name": "UK" },
+        { "x": 65, "y": 68, "z": 6.4,  "name": "France" },
+        { "x": 50, "y": 55, "z": 4.2,  "name": "Spain" }
+      ]
+    }
+  ]
 }

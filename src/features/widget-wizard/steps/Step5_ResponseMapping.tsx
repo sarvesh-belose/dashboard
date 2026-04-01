@@ -701,11 +701,12 @@ export function Step5_ResponseMapping() {
         update.categoriesPath = findCategoriesPath(apiPreviewResponse) ?? ''
       }
       if (family === 'HEATMAP') {
-        // look for xCategories / yCategories keys
+        // look for xCategories / yCategories at top level or nested
         const raw = apiPreviewResponse as Record<string, unknown>
-        const dataObj = (raw?.data ?? raw) as Record<string, unknown>
-        if (dataObj?.xCategories) update.categoriesPath = 'data.xCategories'
-        if (dataObj?.yCategories) update.yCategoriesPath = 'data.yCategories'
+        if (raw?.xCategories) update.categoriesPath = 'xCategories'
+        else if ((raw?.data as Record<string, unknown>)?.xCategories) update.categoriesPath = 'data.xCategories'
+        if (raw?.yCategories) update.yCategoriesPath = 'yCategories'
+        else if ((raw?.data as Record<string, unknown>)?.yCategories) update.yCategoriesPath = 'data.yCategories'
       }
 
       if (seriesPath) {

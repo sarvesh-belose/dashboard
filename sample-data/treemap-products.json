@@ -1,19 +1,17 @@
 {
-  "data": {
-    "series": [
-      {
-        "name": "Product Revenue",
-        "data": [
-          { "id": "software",    "name": "Software",     "value": 0 },
-          { "name": "Enterprise",   "value": 4500,  "parent": "software" },
-          { "name": "Professional", "value": 2500,  "parent": "software" },
-          { "name": "Starter",      "value": 900,   "parent": "software" },
-          { "id": "services",    "name": "Services",     "value": 0 },
-          { "name": "Consulting",   "value": 1800,  "parent": "services" },
-          { "name": "Training",     "value": 700,   "parent": "services" },
-          { "name": "Support",      "value": 400,   "parent": "services" }
-        ]
-      }
-    ]
-  }
+  "series": [
+    {
+      "name": "Product Revenue",
+      "data": [
+        { "id": "software", "name": "Software",     "value": 0 },
+        { "name": "Enterprise",   "value": 4500, "parent": "software" },
+        { "name": "Professional", "value": 2500, "parent": "software" },
+        { "name": "Starter",      "value": 900,  "parent": "software" },
+        { "id": "services", "name": "Services",     "value": 0 },
+        { "name": "Consulting",   "value": 1800, "parent": "services" },
+        { "name": "Training",     "value": 700,  "parent": "services" },
+        { "name": "Support",      "value": 400,  "parent": "services" }
+      ]
+    }
+  ]
 }

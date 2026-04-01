@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import HighchartsReact from 'highcharts-react-official'
 import Highcharts from 'highcharts'
 import {
@@ -530,6 +530,10 @@ function LiveChartPreview({
     try {
       const mapped = mapChartResponse(response, mapping, chartConfig.chartType)
       if (!mapped.series.length && !mapped.categories.length) return null
+      // Guard: if every series has empty data the user has likely mapped the wrong field.
+      // Don't pass this to Highcharts — it can throw ".length on undefined" internally.
+      const hasAnyData = mapped.series.some((s) => Array.isArray(s.data) && s.data.length > 0)
+      if (!hasAnyData) return null
       const base = buildHighchartsOptions(chartConfig, mapped.categories, mapped.series as never)
       return {
         ...base,
@@ -639,6 +643,42 @@ export function Step5_ResponseMapping() {
   const seriesItemKeyOptions = hasResponse
     ? getArrayItemKeyOptions(apiPreviewResponse, chartMapping?.seriesPath ?? '')
     : []
+
+  // ── Auto-select name/data fields when series path is chosen ─────────────────
+  // This prevents the recurring user mistake of swapping the name and data fields.
+  useEffect(() => {
+    if (!hasResponse || !isChart || family === 'GAUGE') return
+    const seriesPath = chartMapping?.seriesPath
+    if (!seriesPath) return
+    const arr = resolveSimplePath(apiPreviewResponse, seriesPath)
+    if (!Array.isArray(arr) || arr.length === 0) return
+    const first = arr[0] as Record<string, unknown>
+    if (typeof first !== 'object' || first === null) return
+
+    // Find the first string key → series name; first array key → series data
+    let nameKey: string | undefined
+    let dataKey: string | undefined
+    for (const [k, v] of Object.entries(first)) {
+      if (!nameKey && typeof v === 'string') nameKey = k
+      if (!dataKey && Array.isArray(v))       dataKey = k
+    }
+    // For TREEMAP the values field is a number, not an array
+    if (!dataKey && family === 'TREEMAP') {
+      for (const [k, v] of Object.entries(first)) {
+        if (!dataKey && Array.isArray(v)) dataKey = k
+      }
+      // fall back to 'data' key if present
+      if (!dataKey && 'data' in first) dataKey = 'data'
+    }
+
+    const updates: Partial<ChartResponseMapping> = {}
+    if (nameKey && !chartMapping?.seriesNameField) updates.seriesNameField = nameKey
+    if (dataKey && !chartMapping?.seriesDataField) updates.seriesDataField = dataKey
+    if (Object.keys(updates).length > 0) {
+      updateDraft({ responseMapping: { ...mapping, ...updates } as never } as never)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chartMapping?.seriesPath])
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 

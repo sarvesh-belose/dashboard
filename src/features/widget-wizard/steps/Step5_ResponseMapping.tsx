@@ -77,6 +77,40 @@ function getArrayItemKeys(response: unknown, arrayPath: string): string[] {
   return Object.keys(first as object)
 }
 
+/** Returns Select options with value-type hints from the first array item.
+ *  e.g.  name → { value:'name', label:'name — "Revenue" (text label)' }
+ *        data → { value:'data', label:'data — [120000, 135000, …] (numbers array)' }
+ */
+function getArrayItemKeyOptions(
+  response: unknown,
+  arrayPath: string,
+): Array<{ value: string; label: string }> {
+  if (!arrayPath) return []
+  const arr = resolveSimplePath(response, arrayPath)
+  if (!Array.isArray(arr) || arr.length === 0) return []
+  const first = arr[0]
+  if (typeof first !== 'object' || first === null) return []
+  return Object.entries(first as Record<string, unknown>).map(([k, v]) => {
+    let hint = ''
+    if (typeof v === 'string') {
+      hint = ` — "${v.length > 20 ? v.slice(0, 20) + '…' : v}" (text label)`
+    } else if (typeof v === 'number') {
+      hint = ` — ${v} (number)`
+    } else if (Array.isArray(v) && v.length > 0) {
+      const sample = (v as unknown[]).slice(0, 3).join(', ')
+      const more = v.length > 3 ? ', …' : ''
+      const kind = typeof v[0] === 'number' ? 'numbers' : 'values'
+      hint = ` — [${sample}${more}] (${kind} array)`
+    } else if (Array.isArray(v)) {
+      hint = ' — [] (empty array)'
+    } else if (v !== null && typeof v === 'object') {
+      const keys = Object.keys(v as object).slice(0, 3).join(', ')
+      hint = ` — { ${keys} } (object)`
+    }
+    return { value: k, label: `${k}${hint}` }
+  })
+}
+
 // Collect all paths that resolve to a primitive number (for gauge value picker)
 function getNumberPaths(paths: PathNode[]) {
   return paths
@@ -601,6 +635,11 @@ export function Step5_ResponseMapping() {
     ? getArrayItemKeys(apiPreviewResponse, chartMapping?.seriesPath ?? '')
     : []
 
+  // Rich options with value-type hints (e.g. 'name — "Revenue" (text label)')
+  const seriesItemKeyOptions = hasResponse
+    ? getArrayItemKeyOptions(apiPreviewResponse, chartMapping?.seriesPath ?? '')
+    : []
+
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   const setMapping = (partial: Partial<ChartResponseMapping | GridResponseMapping>) =>
@@ -816,7 +855,7 @@ export function Step5_ResponseMapping() {
                 hint="The field that labels this heatmap series (shown in the legend)."
                 value={chartMapping?.seriesNameField ?? ''}
                 onChange={(v) => setMapping({ seriesNameField: v } as Partial<ChartResponseMapping>)}
-                options={seriesItemKeys.map((k) => ({ value: k, label: k }))}
+                options={seriesItemKeyOptions}
                 disabled={!chartMapping?.seriesPath}
               />
               <SmartSelect
@@ -824,7 +863,7 @@ export function Step5_ResponseMapping() {
                 hint="Each triplet positions a cell on the grid and sets its colour intensity."
                 value={chartMapping?.seriesDataField ?? ''}
                 onChange={(v) => setMapping({ seriesDataField: v } as Partial<ChartResponseMapping>)}
-                options={seriesItemKeys.map((k) => ({ value: k, label: k }))}
+                options={seriesItemKeyOptions}
                 disabled={!chartMapping?.seriesPath}
               />
               <SmartSelect
@@ -862,7 +901,7 @@ export function Step5_ResponseMapping() {
                 hint="The field that names each group of points (shown in the legend)."
                 value={chartMapping?.seriesNameField ?? ''}
                 onChange={(v) => setMapping({ seriesNameField: v } as Partial<ChartResponseMapping>)}
-                options={seriesItemKeys.map((k) => ({ value: k, label: k }))}
+                options={seriesItemKeyOptions}
                 disabled={!chartMapping?.seriesPath}
               />
               <SmartSelect
@@ -870,7 +909,7 @@ export function Step5_ResponseMapping() {
                 hint="Each item should be [x, y] or an object with x and y fields."
                 value={chartMapping?.seriesDataField ?? ''}
                 onChange={(v) => setMapping({ seriesDataField: v } as Partial<ChartResponseMapping>)}
-                options={seriesItemKeys.map((k) => ({ value: k, label: k }))}
+                options={seriesItemKeyOptions}
                 disabled={!chartMapping?.seriesPath}
               />
             </>
@@ -894,7 +933,7 @@ export function Step5_ResponseMapping() {
                 hint="The field that names each group of bubbles."
                 value={chartMapping?.seriesNameField ?? ''}
                 onChange={(v) => setMapping({ seriesNameField: v } as Partial<ChartResponseMapping>)}
-                options={seriesItemKeys.map((k) => ({ value: k, label: k }))}
+                options={seriesItemKeyOptions}
                 disabled={!chartMapping?.seriesPath}
               />
               <SmartSelect
@@ -902,7 +941,7 @@ export function Step5_ResponseMapping() {
                 hint="Each item needs x (position), y (position) and z (bubble size) fields."
                 value={chartMapping?.seriesDataField ?? ''}
                 onChange={(v) => setMapping({ seriesDataField: v } as Partial<ChartResponseMapping>)}
-                options={seriesItemKeys.map((k) => ({ value: k, label: k }))}
+                options={seriesItemKeyOptions}
                 disabled={!chartMapping?.seriesPath}
               />
             </>
@@ -926,7 +965,7 @@ export function Step5_ResponseMapping() {
                 hint='The numeric field that controls how big each rectangle is. Usually "value" or "amount".'
                 value={chartMapping?.seriesDataField ?? ''}
                 onChange={(v) => setMapping({ seriesDataField: v } as Partial<ChartResponseMapping>)}
-                options={seriesItemKeys.map((k) => ({ value: k, label: k }))}
+                options={seriesItemKeyOptions}
                 disabled={!chartMapping?.seriesPath}
               />
             </>
@@ -955,7 +994,7 @@ export function Step5_ResponseMapping() {
                   : 'Select "Where is your chart data?" first.'}
                 value={chartMapping?.seriesNameField ?? ''}
                 onChange={(v) => setMapping({ seriesNameField: v } as Partial<ChartResponseMapping>)}
-                options={seriesItemKeys.map((k) => ({ value: k, label: k }))}
+                options={seriesItemKeyOptions}
                 disabled={!chartMapping?.seriesPath}
                 disabledHint='Answer "Where is your chart data?" first'
               />
@@ -966,7 +1005,7 @@ export function Step5_ResponseMapping() {
                   : `The field containing the list of values for each data point (e.g. [120, 135, 162]). Fields: ${seriesItemKeys.join(', ') || '(select series path first)'}.`}
                 value={chartMapping?.seriesDataField ?? ''}
                 onChange={(v) => setMapping({ seriesDataField: v } as Partial<ChartResponseMapping>)}
-                options={seriesItemKeys.map((k) => ({ value: k, label: k }))}
+                options={seriesItemKeyOptions}
                 disabled={!chartMapping?.seriesPath}
                 disabledHint='Answer "Where is your chart data?" first'
               />

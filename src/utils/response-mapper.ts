@@ -94,10 +94,14 @@ export function mapChartResponse(
     : []
 
   const mapped = seriesData.map((item) => applyFieldMappings(item, mapping.fieldMappings))
-  const series = mapped.map((item) => ({
-    name: String(item[mapping.seriesNameField] ?? ''),
-    data: item[mapping.seriesDataField] as unknown[],
-  }))
+  const series = mapped.map((item) => {
+    const rawData = item[mapping.seriesDataField]
+    return {
+      name: String(item[mapping.seriesNameField] ?? ''),
+      // Guard: wrong field selection (e.g. a string instead of array) should not crash Highcharts
+      data: Array.isArray(rawData) ? (rawData as unknown[]) : [],
+    }
+  })
 
   return { categories: categoriesData, series }
 }

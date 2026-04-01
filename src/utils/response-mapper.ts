@@ -13,9 +13,9 @@ export function getByPath(data: unknown, path: string): unknown {
 
 function applyFieldMappings(
   item: Record<string, unknown>,
-  mappings: FieldMapping[],
+  mappings: FieldMapping[] | undefined,
 ): Record<string, unknown> {
-  if (!mappings.length) return item
+  if (!mappings || mappings.length === 0) return item
   const out: Record<string, unknown> = { ...item }
   for (const m of mappings) {
     const raw = item[m.sourceField]
@@ -44,7 +44,7 @@ export function mapGridResponse(
   mapping: GridResponseMapping,
 ): { rows: Record<string, unknown>[]; totalCount?: number } {
   const rows = (getByPath(raw, mapping.rowsPath) ?? []) as Record<string, unknown>[]
-  const mapped = rows.map((item) => applyFieldMappings(item, mapping.fieldMappings))
+  const mapped = rows.map((item) => applyFieldMappings(item, mapping.fieldMappings ?? []))
   const totalCount = mapping.totalCountPath
     ? (getByPath(raw, mapping.totalCountPath) as number | undefined)
     : undefined
@@ -93,7 +93,7 @@ export function mapChartResponse(
     ? ((getByPath(raw, mapping.categoriesPath) ?? []) as string[])
     : []
 
-  const mapped = seriesData.map((item) => applyFieldMappings(item, mapping.fieldMappings))
+  const mapped = seriesData.map((item) => applyFieldMappings(item, mapping.fieldMappings ?? []))
   const series = mapped.map((item) => {
     const rawData = item[mapping.seriesDataField]
     return {

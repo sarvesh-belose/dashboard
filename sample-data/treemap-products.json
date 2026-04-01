@@ -1,0 +1,19 @@
+{
+  "data": {
+    "series": [
+      {
+        "name": "Product Revenue",
+        "data": [
+          { "name": "Software",     "value": null, "id": "software" },
+          { "name": "Enterprise",   "value": 4500, "parent": "software" },
+          { "name": "Professional", "value": 2500, "parent": "software" },
+          { "name": "Starter",      "value": 900,  "parent": "software" },
+          { "name": "Services",     "value": null, "id": "services" },
+          { "name": "Consulting",   "value": 1800, "parent": "services" },
+          { "name": "Training",     "value": 700,  "parent": "services" },
+          { "name": "Support",      "value": 400,  "parent": "services" }
+        ]
+      }
+    ]
+  }
+}

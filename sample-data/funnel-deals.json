@@ -1,0 +1,16 @@
+{
+  "data": {
+    "series": [
+      {
+        "name": "Sales Funnel",
+        "data": [
+          { "name": "Leads",        "y": 1200 },
+          { "name": "Qualified",    "y": 640 },
+          { "name": "Proposal",     "y": 280 },
+          { "name": "Negotiation",  "y": 130 },
+          { "name": "Closed Won",   "y": 58 }
+        ]
+      }
+    ]
+  }
+}

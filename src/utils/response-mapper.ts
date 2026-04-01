@@ -1,5 +1,7 @@
 import { JSONPath } from 'jsonpath-plus'
 import type { FieldMapping, ResponseMapping, ChartResponseMapping, GridResponseMapping } from '@/types'
+import type { ChartType } from '@/types/chart.types'
+import { getChartFamily } from '@/constants/chart-families'
 
 export function getByPath(data: unknown, path: string): unknown {
   if (!path || path === '$' || path === '.') return data
@@ -52,8 +54,41 @@ export function mapGridResponse(
 export function mapChartResponse(
   raw: unknown,
   mapping: ChartResponseMapping,
-): { categories: string[]; series: Array<{ name: string; data: unknown[] }> } {
-  const seriesData = (getByPath(raw, mapping.seriesPath) ?? []) as Record<string, unknown>[]
+  chartType?: ChartType,
+): { categories: string[]; series: Array<{ name: string; data: unknown[]; yCategories?: string[] }> } {
+  const family = chartType ? getChartFamily(chartType) : 'STANDARD'
+
+  // ── GAUGE — extract a single scalar value ─────────────────────────────────
+  if (family === 'GAUGE') {
+    const valuePath = mapping.gaugeValuePath ?? mapping.seriesDataField
+    if (valuePath) {
+      const value = getByPath(raw, valuePath) as number
+      return {
+        categories: [],
+        series: [{ name: 'Value', data: [typeof value === 'number' ? value : 0] }],
+      }
+    }
+  }
+
+  // ── HEATMAP — extract xCategories, yCategories, and series data ───────────
+  if (family === 'HEATMAP') {
+    const xCats = mapping.categoriesPath
+      ? ((getByPath(raw, mapping.categoriesPath) ?? []) as string[])
+      : []
+    const yCats = mapping.yCategoriesPath
+      ? ((getByPath(raw, mapping.yCategoriesPath) ?? []) as string[])
+      : []
+    const seriesArr = (getByPath(raw, mapping.seriesPath) ?? []) as Record<string, unknown>[]
+    const series = seriesArr.map((item) => ({
+      name:        String(item[mapping.seriesNameField] ?? ''),
+      data:        item[mapping.seriesDataField] as unknown[],
+      yCategories: yCats,
+    }))
+    return { categories: xCats, series }
+  }
+
+  // ── Standard / PIE / SCATTER / BUBBLE / TREEMAP ───────────────────────────
+  const seriesData    = (getByPath(raw, mapping.seriesPath) ?? []) as Record<string, unknown>[]
   const categoriesData = mapping.categoriesPath
     ? ((getByPath(raw, mapping.categoriesPath) ?? []) as string[])
     : []

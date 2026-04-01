@@ -48,6 +48,8 @@ export interface ResponseMapping {
 export interface ChartResponseMapping extends ResponseMapping {
   seriesPath: string
   categoriesPath?: string
+  yCategoriesPath?: string     // HEATMAP y-axis labels
+  gaugeValuePath?: string      // GAUGE — path to a single scalar
   seriesNameField: string
   seriesDataField: string
 }

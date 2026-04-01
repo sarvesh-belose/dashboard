@@ -25,7 +25,14 @@ const MOCK_ROUTES = {
   '/api/employees':       'employees.json',
   '/api/kpis':            'kpis.json',
   '/api/pipeline':        'pipeline.json',
-  '/api/support-tickets': 'support-tickets.json',
+  '/api/support-tickets':       'support-tickets.json',
+  '/api/scatter/performance':   'scatter-performance.json',
+  '/api/bubble/market':         'bubble-market.json',
+  '/api/heatmap/weekly':        'heatmap-weekly.json',
+  '/api/gauge/performance':     'gauge-performance.json',
+  '/api/waterfall/revenue':     'waterfall-revenue.json',
+  '/api/funnel/deals':          'funnel-deals.json',
+  '/api/treemap/products':      'treemap-products.json',
 }
 
 function mockApiMiddleware(req, res, next) {

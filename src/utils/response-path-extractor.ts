@@ -198,3 +198,108 @@ export function validateRowsPath(response: unknown, path: string): ValidationRes
   }
   return { ok: true, warning: false, message: `✓ Found ${value.length} rows` }
 }
+
+// ---------------------------------------------------------------------------
+// Gauge validator — checks that a path resolves to a single number
+// ---------------------------------------------------------------------------
+export function validateGaugePath(response: unknown, path: string): ValidationResult {
+  if (!path) return { ok: false, warning: false, message: 'Required' }
+  const value = resolveSimplePath(response, path)
+  if (value === undefined) {
+    return { ok: false, warning: false, message: `Path "${path}" not found in response` }
+  }
+  if (typeof value !== 'number') {
+    return { ok: false, warning: false, message: `Expected a number, got ${typeof value} (${JSON.stringify(value)})` }
+  }
+  return { ok: true, warning: false, message: `✓ Value: ${value}` }
+}
+
+// ---------------------------------------------------------------------------
+// Scatter validator — checks that series data is [[x,y], ...] or [{x,y}, ...]
+// ---------------------------------------------------------------------------
+export function validateScatterDataField(
+  response: unknown,
+  seriesPath: string,
+  dataField: string,
+): ValidationResult {
+  if (!seriesPath || !dataField) return { ok: false, warning: false, message: 'Required' }
+  const seriesArr = resolveSimplePath(response, seriesPath)
+  if (!Array.isArray(seriesArr) || seriesArr.length === 0) {
+    return { ok: true, warning: true, message: 'No series found to validate' }
+  }
+  const firstSeries = seriesArr[0] as Record<string, unknown>
+  const data = firstSeries[dataField]
+  if (!Array.isArray(data) || data.length === 0) {
+    return { ok: true, warning: true, message: 'Data field is empty' }
+  }
+  const first = data[0]
+  const isXYPair = Array.isArray(first) && first.length >= 2
+  const isXYObj = typeof first === 'object' && first !== null && 'x' in (first as object) && 'y' in (first as object)
+  if (!isXYPair && !isXYObj) {
+    return {
+      ok: false, warning: false,
+      message: 'Scatter data must be [x, y] pairs or objects with {x, y} fields',
+    }
+  }
+  return { ok: true, warning: false, message: `✓ Found ${data.length} points` }
+}
+
+// ---------------------------------------------------------------------------
+// Bubble validator — checks that series data is [{x,y,z}, ...]
+// ---------------------------------------------------------------------------
+export function validateBubbleDataField(
+  response: unknown,
+  seriesPath: string,
+  dataField: string,
+): ValidationResult {
+  if (!seriesPath || !dataField) return { ok: false, warning: false, message: 'Required' }
+  const seriesArr = resolveSimplePath(response, seriesPath)
+  if (!Array.isArray(seriesArr) || seriesArr.length === 0) {
+    return { ok: true, warning: true, message: 'No series found to validate' }
+  }
+  const firstSeries = seriesArr[0] as Record<string, unknown>
+  const data = firstSeries[dataField]
+  if (!Array.isArray(data) || data.length === 0) {
+    return { ok: true, warning: true, message: 'Data field is empty' }
+  }
+  const first = data[0]
+  const hasXYZ = typeof first === 'object' && first !== null
+    && 'x' in (first as object) && 'y' in (first as object) && 'z' in (first as object)
+  if (!hasXYZ) {
+    return {
+      ok: false, warning: false,
+      message: 'Bubble data must be objects with {x, y, z} fields (z = bubble size)',
+    }
+  }
+  return { ok: true, warning: false, message: `✓ Found ${data.length} bubbles` }
+}
+
+// ---------------------------------------------------------------------------
+// Heatmap validator — checks that series data is [[col, row, value], ...]
+// ---------------------------------------------------------------------------
+export function validateHeatmapDataField(
+  response: unknown,
+  seriesPath: string,
+  dataField: string,
+): ValidationResult {
+  if (!seriesPath || !dataField) return { ok: false, warning: false, message: 'Required' }
+  const seriesArr = resolveSimplePath(response, seriesPath)
+  if (!Array.isArray(seriesArr) || seriesArr.length === 0) {
+    return { ok: true, warning: true, message: 'No series found to validate' }
+  }
+  const firstSeries = seriesArr[0] as Record<string, unknown>
+  const data = firstSeries[dataField]
+  if (!Array.isArray(data) || data.length === 0) {
+    return { ok: true, warning: true, message: 'Data field is empty' }
+  }
+  const first = data[0]
+  const isTriple = Array.isArray(first) && first.length >= 3
+    && typeof first[0] === 'number' && typeof first[1] === 'number' && typeof first[2] === 'number'
+  if (!isTriple) {
+    return {
+      ok: false, warning: false,
+      message: 'Heatmap data must be [colIndex, rowIndex, value] triplets',
+    }
+  }
+  return { ok: true, warning: false, message: `✓ Found ${data.length} cells` }
+}

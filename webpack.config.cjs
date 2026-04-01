@@ -64,13 +64,6 @@ module.exports = (env, argv) => {
       extensions: ['.tsx', '.ts', '.js', '.jsx'],
       alias: {
         '@': path.resolve(__dirname, 'src'),
-        // Use Highcharts ESM build so modules self-register without window._Highcharts
-        'highcharts$': path.resolve(__dirname, 'node_modules/highcharts/esm/highcharts.js'),
-        'highcharts/highcharts-more': path.resolve(__dirname, 'node_modules/highcharts/esm/highcharts-more.js'),
-        'highcharts/modules/heatmap': path.resolve(__dirname, 'node_modules/highcharts/esm/modules/heatmap.js'),
-        'highcharts/modules/funnel': path.resolve(__dirname, 'node_modules/highcharts/esm/modules/funnel.js'),
-        'highcharts/modules/solid-gauge': path.resolve(__dirname, 'node_modules/highcharts/esm/modules/solid-gauge.js'),
-        'highcharts/modules/treemap': path.resolve(__dirname, 'node_modules/highcharts/esm/modules/treemap.js'),
       },
     },
 

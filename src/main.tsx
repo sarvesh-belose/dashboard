@@ -1,4 +1,3 @@
-import './lib/highcharts'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { MantineProvider, createTheme } from '@mantine/core'

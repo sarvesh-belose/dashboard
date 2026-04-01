@@ -1,6 +1,5 @@
 {
   "data": {
-    "categories": ["Starting Revenue", "New Customers", "Upsells", "Churn", "Refunds", "Net Revenue"],
     "series": [
       {
         "name": "Revenue Breakdown",

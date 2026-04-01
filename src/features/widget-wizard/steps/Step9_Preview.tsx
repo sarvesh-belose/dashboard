@@ -59,8 +59,9 @@ function ChartPreview({ widget, rawResponse }: { widget: ChartWidget; rawRespons
   const issues: IssueItem[] = []
 
   const mapping = widget.responseMapping as ChartResponseMapping
-  const chartConfig = widget.chartConfig as ChartConfig
-  const family = getChartFamily(chartConfig.chartType)
+  // Guard: chartConfig may be absent if user hasn't completed Step 6 yet
+  const chartConfig: ChartConfig = widget.chartConfig ?? { chartType: 'line', showDataLabels: false }
+  const family = getChartFamily(chartConfig.chartType ?? 'line')
 
   if (family === 'GAUGE') {
     if (!mapping?.gaugeValuePath?.trim()) {

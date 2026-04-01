@@ -279,63 +279,168 @@ function GridDataPreview({ response, rowsPath }: { response: unknown; rowsPath: 
 // How does this work? — collapsible help
 // ---------------------------------------------------------------------------
 
-function HowItWorks({ chartType }: { chartType: ChartType | null }) {
-  const [open, { toggle }] = useDisclosure(false)
-  const isPie = chartType ? PIE_TYPES.includes(chartType) : false
-
-  return (
-    <Box>
-      <Group gap={6} style={{ cursor: 'pointer' }} onClick={toggle}>
-        <IconHelp size={14} color="var(--mantine-color-blue-5)" />
-        <Text size="xs" c="blue.6" fw={500}>How does this work?</Text>
-        {open ? <IconChevronUp size={12} /> : <IconChevronDown size={12} />}
-      </Group>
-      <Collapse in={open}>
-        <Paper withBorder p="sm" mt={6} bg="var(--mantine-color-blue-0)" radius="sm">
-          {isPie ? (
-            <Stack gap={4}>
-              <Text size="xs" fw={600}>How pie / donut charts work</Text>
-              <Text size="xs">Your API returns a list of series. Each series has a name and a list of slices.</Text>
-              <Text size="xs">Each slice must have two things: a <strong>label</strong> (e.g. "Chrome") and a <strong>value</strong> (e.g. 61).</Text>
-              <Code fz={10} block style={{ marginTop: 4 }}>{`{
-  "series": [
-    {
-      "name": "Market Share",
-      "data": [
-        { "name": "Chrome",  "y": 61 },
-        { "name": "Firefox", "y": 17 }
-      ]
-    }
-  ]
-}`}</Code>
-              <Text size="xs" c="dimmed">In the questions below: "Where is your data?" → data location of that array. "What is each series called?" → "name". "Where are the pie slices?" → "data".</Text>
-            </Stack>
-          ) : chartType ? (
-            <Stack gap={4}>
-              <Text size="xs" fw={600}>How {chartType} charts work</Text>
-              <Text size="xs">Your API returns a list of series. Each series has a name and a list of numbers — one number per point on the chart.</Text>
-              <Code fz={10} block style={{ marginTop: 4 }}>{`{
+// Per-family help content: example JSON + field mapping instructions
+const FAMILY_HELP: Record<string, { title: string; json: string; fields: string }> = {
+  STANDARD: {
+    title: 'Line, Bar, Column, Area, Spline, Waterfall',
+    json: `{
   "series": [
     { "name": "Revenue",  "data": [120, 135, 162] },
     { "name": "Expenses", "data": [85,  92,  105] }
   ],
   "categories": ["Jan", "Feb", "Mar"]
-}`}</Code>
-              <Text size="xs" c="dimmed">"Where is your data?" → the series array. "Name field" → "name". "Values field" → "data". "X-axis labels" → categories.</Text>
-            </Stack>
-          ) : (
-            <Stack gap={4}>
-              <Text size="xs" fw={600}>How tables work</Text>
-              <Text size="xs">Your API returns a list of records. Each record becomes one row in your table.</Text>
-              <Code fz={10} block style={{ marginTop: 4 }}>{`{
+}`,
+    fields: '• "Where is your chart data?" → series\n• "What is each series called?" → name\n• "Which field holds the numbers?" → data\n• "X-axis labels" → categories (optional)',
+  },
+  WATERFALL: {
+    title: 'Waterfall chart',
+    json: `{
+  "series": [
+    {
+      "name": "Revenue Breakdown",
+      "data": [
+        { "name": "Starting Revenue", "y": 80000 },
+        { "name": "New Customers",    "y": 20000 },
+        { "name": "Churn",            "y": -8000 },
+        { "name": "Net Revenue",      "y": 92000, "isSum": true }
+      ]
+    }
+  ]
+}`,
+    fields: '• "Where is your chart data?" → series\n• "What is each series called?" → name\n• "Which field holds the numbers?" → data\n  Each item has a name (bar label) and y (height). Add "isSum": true for total bars.',
+  },
+  PIE: {
+    title: 'Pie, Donut, Funnel, Pyramid',
+    json: `{
+  "series": [
+    {
+      "name": "Market Share",
+      "data": [
+        { "name": "Chrome",  "y": 61 },
+        { "name": "Firefox", "y": 17 },
+        { "name": "Safari",  "y": 10 }
+      ]
+    }
+  ]
+}`,
+    fields: '• "Where is your chart data?" → series\n• "What is each series called?" → name\n• "Where are the slices?" → data\n  Each slice needs a name (label) and y (value).',
+  },
+  SCATTER: {
+    title: 'Scatter chart',
+    json: `{
+  "series": [
+    {
+      "name": "Team A",
+      "data": [[65, 82], [72, 91], [58, 74]]
+    },
+    {
+      "name": "Team B",
+      "data": [[55, 70], [62, 78], [48, 65]]
+    }
+  ]
+}`,
+    fields: '• "Where is your chart data?" → series\n• "What is each series called?" → name\n• "Which field holds the coordinate pairs?" → data\n  Each point is [x, y] — two numbers in an array.',
+  },
+  BUBBLE: {
+    title: 'Bubble chart',
+    json: `{
+  "series": [
+    {
+      "name": "APAC",
+      "data": [
+        { "x": 95, "y": 95, "z": 13.8, "name": "Japan" },
+        { "x": 86, "y": 76, "z": 9.2,  "name": "Australia" }
+      ]
+    }
+  ]
+}`,
+    fields: '• "Where is your chart data?" → series\n• "What is each series called?" → name\n• "Which field holds the bubble objects?" → data\n  Each bubble needs x (horizontal), y (vertical), z (bubble size).',
+  },
+  HEATMAP: {
+    title: 'Heatmap',
+    json: `{
+  "xCategories": ["Mon", "Tue", "Wed"],
+  "yCategories": ["Morning", "Afternoon", "Evening"],
+  "series": [
+    {
+      "name": "Ticket Volume",
+      "data": [
+        [0, 0, 45], [0, 1, 72], [0, 2, 30],
+        [1, 0, 60], [1, 1, 88], [1, 2, 42]
+      ]
+    }
+  ]
+}`,
+    fields: '• "Where is your data?" → series\n• "What is each series called?" → name\n• "Which field holds the cell data?" → data\n  Each cell is [columnIndex, rowIndex, value] — three numbers.\n• "X-axis labels" → xCategories\n• "Y-axis labels" → yCategories',
+  },
+  GAUGE: {
+    title: 'Gauge / Solid Gauge',
+    json: `{
+  "value": 74,
+  "min": 0,
+  "max": 100
+}`,
+    fields: '• "Which field holds the gauge value?" → value\n  Just a single number — no series needed.\n• Optionally map min and max from the response too.',
+  },
+  TREEMAP: {
+    title: 'Treemap',
+    json: `{
+  "series": [
+    {
+      "name": "Product Revenue",
+      "data": [
+        { "id": "software", "name": "Software", "value": 0 },
+        { "name": "Enterprise", "value": 4500, "parent": "software" },
+        { "name": "Professional", "value": 2500, "parent": "software" }
+      ]
+    }
+  ]
+}`,
+    fields: '• "Where is your tree data?" → series\n• "Which field holds the node size value?" → data\n  Parent nodes need an id and value: 0. Child nodes reference their parent via the parent field.',
+  },
+}
+
+function HowItWorks({ chartType }: { chartType: ChartType | null }) {
+  const [open, { toggle }] = useDisclosure(false)
+
+  const family = chartType ? getChartFamily(chartType) : null
+  const helpKey = chartType === 'waterfall'
+    ? 'WATERFALL'
+    : (family ?? 'STANDARD')
+
+  const help = FAMILY_HELP[helpKey] ?? FAMILY_HELP.STANDARD
+
+  const tableHelp = {
+    title: 'Table / Grid',
+    json: `{
   "items": [
     { "id": 1, "name": "Alice", "status": "Active" },
     { "id": 2, "name": "Bob",   "status": "Inactive" }
   ]
-}`}</Code>
-              <Text size="xs" c="dimmed">"Which list contains your rows?" → "items" in the example above.</Text>
-            </Stack>
-          )}
+}`,
+    fields: '• "Which list contains your rows?" → items\n  Each object in the list becomes one row.',
+  }
+
+  const current = chartType === null ? tableHelp : help
+
+  return (
+    <Box>
+      <Group gap={6} style={{ cursor: 'pointer' }} onClick={toggle}>
+        <IconHelp size={14} color="var(--mantine-color-blue-5)" />
+        <Text size="xs" c="blue.6" fw={500}>How should my data look? (click to expand)</Text>
+        {open ? <IconChevronUp size={12} /> : <IconChevronDown size={12} />}
+      </Group>
+      <Collapse in={open}>
+        <Paper withBorder p="sm" mt={6} bg="var(--mantine-color-blue-0)" radius="sm">
+          <Stack gap={6}>
+            <Text size="xs" fw={600}>{current.title}</Text>
+            <Text size="xs">Your API response should look like this:</Text>
+            <Code fz={10} block>{current.json}</Code>
+            <Text size="xs" fw={500} mt={4}>How to fill in the fields below:</Text>
+            <Code fz={10} block style={{ whiteSpace: 'pre', background: 'transparent', border: 'none', padding: 0 }}>
+              {current.fields}
+            </Code>
+          </Stack>
         </Paper>
       </Collapse>
     </Box>

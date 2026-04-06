@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import { Card, Group, Text, ActionIcon, Tooltip, Box } from '@mantine/core'
-import { IconEdit, IconTrash, IconRefresh } from '@tabler/icons-react'
+import { IconEdit, IconTrash, IconRefresh, IconGripVertical } from '@tabler/icons-react'
 import { useDashboardStore } from '@/store/dashboard.store'
 import { useWidgetWizardStore } from '@/store/widget-wizard.store'
 import { useQueryClient } from '@tanstack/react-query'
@@ -41,9 +41,29 @@ export const WidgetShell = memo(function WidgetShell({ widgetId }: Props) {
         withBorder
       >
         <Group justify="space-between" mb="xs" wrap="nowrap">
+          {/* Drag handle — only shown (and functional) in edit mode */}
+          {isEditMode && (
+            <Tooltip label="Drag to reposition" withArrow>
+              <Box
+                className="drag-handle"
+                style={{
+                  cursor: 'grab',
+                  color: 'var(--mantine-color-gray-5)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  flexShrink: 0,
+                  paddingRight: 4,
+                }}
+              >
+                <IconGripVertical size={14} />
+              </Box>
+            </Tooltip>
+          )}
+
           <Text fw={600} size="sm" truncate style={{ flex: 1 }}>
             {widget.title}
           </Text>
+
           <Group gap={4} wrap="nowrap">
             <Tooltip label="Refresh" withArrow>
               <ActionIcon variant="subtle" size="sm" onClick={handleRefresh}>

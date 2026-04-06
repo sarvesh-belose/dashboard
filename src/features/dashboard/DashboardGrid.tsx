@@ -27,8 +27,10 @@ export function DashboardGrid() {
         cols={COLS}
         rowHeight={80}
         margin={[12, 12]}
+        // Drag: only via the grip handle icon in the widget header
         dragConfig={{ enabled: isEditMode, handle: '.drag-handle' }}
-        resizeConfig={{ enabled: isEditMode, handles: ['se'] }}
+        // Resize: always enabled so users can resize without entering edit mode
+        resizeConfig={{ enabled: true, handles: ['se', 's', 'e'] }}
         onLayoutChange={(_layout, allLayouts) =>
           onLayoutChange(undefined, allLayouts as never)
         }

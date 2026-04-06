@@ -47,7 +47,14 @@ export const useDashboardStore = create<DashboardStore>()((set) => ({
     set((state) => {
       if (!state.dashboard) return {}
       const layout = { ...state.dashboard.layout }
+      // Populate every breakpoint so the widget shows regardless of screen size.
+      // Clamp width to each breakpoint's column count; reset x to 0 for narrower screens.
+      const maxY = (bp: GridLayoutItem[]) =>
+        bp.reduce((m, i) => Math.max(m, i.y + i.h), 0)
       layout.lg = [...(layout.lg ?? []), layoutItem]
+      layout.md = [...(layout.md ?? []), { ...layoutItem, w: Math.min(layoutItem.w, 10), x: 0, y: maxY(layout.md ?? []) }]
+      layout.sm = [...(layout.sm ?? []), { ...layoutItem, w: Math.min(layoutItem.w, 6),  x: 0, y: maxY(layout.sm ?? []) }]
+      layout.xs = [...(layout.xs ?? []), { ...layoutItem, w: Math.min(layoutItem.w, 4),  x: 0, y: maxY(layout.xs ?? []) }]
       return {
         widgets: { ...state.widgets, [widget.id]: widget },
         dashboard: {

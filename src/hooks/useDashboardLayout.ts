@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useDashboardStore } from '@/store/dashboard.store'
 import { useFilterStore } from '@/store/filter.store'
-import { useAuthStore } from '@/store/auth.store'
 import {
   saveDashboardToStorage,
   loadDashboardFromStorage,
@@ -16,7 +15,6 @@ export function useDashboardLayout() {
   const { dashboard, widgets, isDirty, isEditMode, isSharedView, setDashboard, updateLayout, markSaved, setIsSaving, setSharedView } =
     useDashboardStore()
   const initFilters = useFilterStore((s) => s.initFilters)
-  const setSharedUser = useAuthStore((s) => s.setSharedUser)
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Load on mount — check for shareable URL hash first
@@ -29,8 +27,7 @@ export function useDashboardLayout() {
         const role = params.get('role') ?? 'viewer'
         setDashboard(data.dashboard, data.widgets)
         initFilters(data.filters as Filter[])
-        setSharedView(true)
-        setSharedUser(role)
+        setSharedView(role)   // sets isSharedView=true + sharedViewRole; RBAC handled in useRbac
         return  // skip localStorage load
       }
     }

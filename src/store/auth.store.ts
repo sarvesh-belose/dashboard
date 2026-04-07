@@ -14,8 +14,6 @@ interface AuthActions {
   setUser: (user: User, token: string) => void
   setRoles: (roles: Role[]) => void
   logout: () => void
-  /** Set a synthetic read-only user for shared/embed views. Does not persist. */
-  setSharedUser: (role: string) => void
 }
 
 type AuthStore = AuthState & AuthActions
@@ -36,17 +34,6 @@ export const useAuthStore = create<AuthStore>()(
 
       logout: () =>
         set({ currentUser: null, accessToken: null, isAuthenticated: false }),
-
-      setSharedUser: (role) => {
-        const roleIds = role === 'all'
-          ? ['admin', 'manager', 'user', 'viewer']
-          : [role]
-        set({
-          currentUser: { id: 'shared', name: 'Shared View', email: '', roleIds },
-          accessToken: null,
-          isAuthenticated: false,
-        })
-      },
     }),
     { name: 'dashboard-auth' },
   ),

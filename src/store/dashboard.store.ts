@@ -8,6 +8,8 @@ interface DashboardState {
   isDirty: boolean
   isSaving: boolean
   isSharedView: boolean
+  /** The role used for RBAC enforcement in shared view. null when not in shared view. */
+  sharedViewRole: string | null
 }
 
 interface DashboardActions {
@@ -19,7 +21,7 @@ interface DashboardActions {
   removeWidget: (id: string) => void
   markSaved: () => void
   setIsSaving: (v: boolean) => void
-  setSharedView: (v: boolean) => void
+  setSharedView: (role: string | null) => void
 }
 
 type DashboardStore = DashboardState & DashboardActions
@@ -31,6 +33,7 @@ export const useDashboardStore = create<DashboardStore>()((set) => ({
   isDirty: false,
   isSaving: false,
   isSharedView: false,
+  sharedViewRole: null,
 
   setDashboard: (dashboard, widgetList) => {
     const widgets = Object.fromEntries(widgetList.map((w) => [w.id, w]))
@@ -102,5 +105,9 @@ export const useDashboardStore = create<DashboardStore>()((set) => ({
 
   markSaved: () => set({ isDirty: false }),
   setIsSaving: (v) => set({ isSaving: v }),
-  setSharedView: (v) => set({ isSharedView: v }),
+  setSharedView: (role) => set({
+    isSharedView: role !== null,
+    sharedViewRole: role,
+    isEditMode: false,
+  }),
 }))

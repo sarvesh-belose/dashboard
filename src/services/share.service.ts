@@ -1,3 +1,4 @@
+import LZString from 'lz-string'
 import type { DashboardData } from './dashboard.service'
 import type { Widget } from '@/types'
 
@@ -34,7 +35,7 @@ function stripAuthHeaders(headers: Record<string, string>): Record<string, strin
 }
 
 // ---------------------------------------------------------------------------
-// Encode / decode
+// Encode / decode  (lz-string → URL-safe compressed output)
 // ---------------------------------------------------------------------------
 
 export function encodeDashboard(
@@ -45,17 +46,18 @@ export function encodeDashboard(
     ? data
     : { ...data, widgets: stripCredentials(data.widgets) }
   const json = JSON.stringify(payload)
-  return btoa(encodeURIComponent(json))
+  return LZString.compressToEncodedURIComponent(json)
 }
 
 export function decodeDashboard(hash: string): DashboardData | null {
   try {
-    // Accept either the raw hash string "#s=..." or just the base64 value
+    // Accept either the raw hash string "#s=..." or just the compressed value
     const raw = hash.startsWith('#') ? hash.slice(1) : hash
     const params = new URLSearchParams(raw)
     const encoded = params.get('s')
     if (!encoded) return null
-    const json = decodeURIComponent(atob(encoded))
+    const json = LZString.decompressFromEncodedURIComponent(encoded)
+    if (!json) return null
     return JSON.parse(json) as DashboardData
   } catch {
     return null
@@ -66,13 +68,13 @@ export function decodeDashboard(hash: string): DashboardData | null {
 // Build shareable URL
 // ---------------------------------------------------------------------------
 
+/** Maximum recommended URL length; beyond this the share service warns the caller. */
+export const SHARE_URL_WARN_LENGTH = 20_000
+
 export function buildShareUrl(data: DashboardData, opts: ShareOptions): string {
   const encoded = encodeDashboard(data, opts)
-  const role = opts.viewRole === 'all'
-    ? 'all'
-    : opts.viewRole
   const origin = window.location.origin + window.location.pathname
-  return `${origin}#s=${encoded}&role=${role}`
+  return `${origin}#s=${encoded}&role=${opts.viewRole}`
 }
 
 // ---------------------------------------------------------------------------

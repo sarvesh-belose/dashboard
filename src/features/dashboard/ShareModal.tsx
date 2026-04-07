@@ -11,7 +11,7 @@ import { notifications } from '@mantine/notifications'
 import { useDashboardStore } from '@/store/dashboard.store'
 import { useFilterStore } from '@/store/filter.store'
 import {
-  buildShareUrl, exportDashboardJson, importDashboardJson,
+  buildShareUrl, exportDashboardJson, importDashboardJson, SHARE_URL_WARN_LENGTH,
 } from '@/services/share.service'
 import type { ShareOptions } from '@/services/share.service'
 import type { Filter } from '@/types'
@@ -161,6 +161,15 @@ export function ShareModal({ opened, onClose }: Props) {
               <Text size="xs" c="dimmed" mt={4}>
                 {shareUrl.length.toLocaleString()} characters
               </Text>
+              {shareUrl.length > SHARE_URL_WARN_LENGTH && (
+                <Alert icon={<IconAlertTriangle size={14} />} color="yellow" p="xs" mt={4}>
+                  <Text size="xs">
+                    This dashboard is very large ({shareUrl.length.toLocaleString()} characters).
+                    Some browsers or tools may truncate long URLs.
+                    Consider using <strong>Export JSON</strong> instead.
+                  </Text>
+                </Alert>
+              )}
             </Box>
           </Stack>
         </Tabs.Panel>

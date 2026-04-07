@@ -30,7 +30,7 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
 
 beforeEach(() => {
   act(() => {
-    useDashboardStore.setState({ dashboard: null, widgets: {}, isEditMode: false, isDirty: false, isSaving: false, isSharedView: false })
+    useDashboardStore.setState({ dashboard: null, widgets: {}, isEditMode: false, isDirty: false, isSaving: false, isSharedView: false, sharedViewRole: null })
     useWidgetWizardStore.getState().closeWizard()
   })
 })

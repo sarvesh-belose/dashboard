@@ -7,6 +7,7 @@ interface DashboardState {
   isEditMode: boolean
   isDirty: boolean
   isSaving: boolean
+  isSharedView: boolean
 }
 
 interface DashboardActions {
@@ -18,6 +19,7 @@ interface DashboardActions {
   removeWidget: (id: string) => void
   markSaved: () => void
   setIsSaving: (v: boolean) => void
+  setSharedView: (v: boolean) => void
 }
 
 type DashboardStore = DashboardState & DashboardActions
@@ -28,6 +30,7 @@ export const useDashboardStore = create<DashboardStore>()((set) => ({
   isEditMode: false,
   isDirty: false,
   isSaving: false,
+  isSharedView: false,
 
   setDashboard: (dashboard, widgetList) => {
     const widgets = Object.fromEntries(widgetList.map((w) => [w.id, w]))
@@ -99,4 +102,5 @@ export const useDashboardStore = create<DashboardStore>()((set) => ({
 
   markSaved: () => set({ isDirty: false }),
   setIsSaving: (v) => set({ isSaving: v }),
+  setSharedView: (v) => set({ isSharedView: v }),
 }))

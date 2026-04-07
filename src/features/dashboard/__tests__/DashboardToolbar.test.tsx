@@ -30,7 +30,7 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
 
 beforeEach(() => {
   act(() => {
-    useDashboardStore.setState({ dashboard: null, widgets: {}, isEditMode: false, isDirty: false, isSaving: false })
+    useDashboardStore.setState({ dashboard: null, widgets: {}, isEditMode: false, isDirty: false, isSaving: false, isSharedView: false })
     useWidgetWizardStore.getState().closeWizard()
   })
 })
@@ -89,11 +89,10 @@ describe('DashboardToolbar', () => {
       useDashboardStore.setState({ isEditMode: false, isDirty: false })
     })
     render(<DashboardToolbar />, { wrapper })
-    // In view mode (non-dirty, non-editing): only the edit toggle and settings icon buttons are visible
-    const buttons = screen.getAllByRole('button')
-    // Click the first icon-only button (edit toggle ActionIcon)
+    // Click the edit/view mode toggle by its tooltip label
+    const editToggle = screen.getByRole('button', { name: /switch to edit mode/i })
     act(() => {
-      fireEvent.click(buttons[0])
+      fireEvent.click(editToggle)
     })
     expect(useDashboardStore.getState().isEditMode).toBe(true)
   })

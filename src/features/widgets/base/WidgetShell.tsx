@@ -16,6 +16,7 @@ interface Props {
 export const WidgetShell = memo(function WidgetShell({ widgetId }: Props) {
   const widget = useDashboardStore((s) => s.widgets[widgetId])
   const isEditMode = useDashboardStore((s) => s.isEditMode)
+  const isSharedView = useDashboardStore((s) => s.isSharedView)
   const removeWidget = useDashboardStore((s) => s.removeWidget)
   const openWizard = useWidgetWizardStore((s) => s.openWizard)
   const queryClient = useQueryClient()
@@ -41,8 +42,8 @@ export const WidgetShell = memo(function WidgetShell({ widgetId }: Props) {
         withBorder
       >
         <Group justify="space-between" mb="xs" wrap="nowrap">
-          {/* Drag handle — only shown (and functional) in edit mode */}
-          {isEditMode && (
+          {/* Drag handle — only shown in edit mode, never in shared view */}
+          {isEditMode && !isSharedView && (
             <Tooltip label="Drag to reposition" withArrow>
               <Box
                 className="drag-handle"
@@ -70,7 +71,7 @@ export const WidgetShell = memo(function WidgetShell({ widgetId }: Props) {
                 <IconRefresh size={14} />
               </ActionIcon>
             </Tooltip>
-            {isEditMode && (
+            {isEditMode && !isSharedView && (
               <>
                 <Tooltip label="Edit widget" withArrow>
                   <ActionIcon
